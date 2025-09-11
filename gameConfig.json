@@ -1,0 +1,245 @@
+{
+  "levels": [
+    {
+      "levelName": "Level 1",
+      "systems": [
+        {
+          "id": 1,
+          "type": "ReferenceSystem",
+          "position": { "x": 100, "y": 100 },
+          "inputPorts": ["InfinityPort"],
+          "outputPorts": ["InfinityPort", "SquarePort"],
+          "initialPackets": [
+            { "packetId": 1, "type": "InfinityPacket", "count": 2 },
+            { "packetId": 2, "type": "SquarePacket", "count": 1 },
+            { "packetId": 3, "type": "TrianglePacket", "count": 1 }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "ReferenceSystem",
+          "position": { "x": 100, "y": 300 },
+          "inputPorts": ["TrianglePort"],
+          "outputPorts": ["InfinityPort", "TrianglePort"],
+          "initialPackets": [
+            { "packetId": 4, "type": "InfinityPacket", "count": 1 },
+            { "packetId": 5, "type": "SquarePacket", "count": 1 },
+            { "packetId": 6, "type": "TrianglePacket", "count": 1 }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "NormalSystem",
+          "position": { "x": 300, "y": 300 },
+          "inputPorts": ["SquarePort", "TrianglePort"],
+          "outputPorts": ["TrianglePort"],
+          "initialPackets": []
+        },
+        {
+          "id": 4,
+          "type": "SpySystem",
+          "position": { "x": 500, "y": 100 },
+          "inputPorts": ["InfinityPort", "InfinityPort"],
+          "outputPorts": ["SquarePort"],
+          "initialPackets": []
+        },
+        {
+          "id": 5,
+          "type": "VpnSystem",
+          "position": { "x": 700, "y": 200 },
+          "inputPorts": ["SquarePort", "TrianglePort"],
+          "outputPorts": ["InfinityPort", "TrianglePort"],
+          "initialPackets": []
+        }
+      ],
+      "lines": []
+    },
+
+    {
+      "levelName": "Level 2",
+      "systems": [
+        {
+          "id": 1,
+          "type": "ReferenceSystem",
+          "position": { "x": 100, "y": 100 },
+          "inputPorts": ["InfinityPort"],
+          "outputPorts": ["InfinityPort", "SquarePort"],
+          "initialPackets": [
+            { "packetId": 1, "type": "InfinityPacket", "count": 2 },
+            { "packetId": 2, "type": "SquarePacket", "count": 1 },
+            { "packetId": 3, "type": "TrianglePacket", "count": 1 }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "ReferenceSystem",
+          "position": { "x": 100, "y": 300 },
+          "inputPorts": ["TrianglePort"],
+          "outputPorts": ["InfinityPort", "TrianglePort"],
+          "initialPackets": [
+            { "packetId": 4, "type": "InfinityPacket", "count": 1 },
+            { "packetId": 5, "type": "SquarePacket", "count": 1 },
+            { "packetId": 6, "type": "TrianglePacket", "count": 1 }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "NormalSystem",
+          "position": { "x": 300, "y": 300 },
+          "inputPorts": ["SquarePort", "TrianglePort"],
+          "outputPorts": ["TrianglePort"],
+          "initialPackets": []
+        },
+        {
+          "id": 4,
+          "type": "SpySystem",
+          "position": { "x": 500, "y": 100 },
+          "inputPorts": ["InfinityPort", "InfinityPort"],
+          "outputPorts": ["SquarePort"],
+          "initialPackets": []
+        },
+        {
+          "id": 5,
+          "type": "VpnSystem",
+          "position": { "x": 700, "y": 200 },
+          "inputPorts": ["SquarePort", "TrianglePort"],
+          "outputPorts": ["InfinityPort", "TrianglePort"],
+          "initialPackets": []
+        },
+        {
+          "id": 6,
+          "type": "ReferenceSystem",
+          "position": { "x": 100, "y": 500 },
+          "inputPorts": ["SquarePort", "TrianglePort"],
+          "outputPorts": ["InfinityPort", "TrianglePort"],
+          "initialPackets": [
+            { "packetId": 101, "type": "BigPacket1", "count": 1 },
+            { "packetId": 102, "type": "SecretPacket2", "count": 1, "colorId": 1 },
+            { "packetId": 103, "type": "BigPacket2", "count": 1 },
+            { "packetId": 104, "type": "SecretPacket1", "count": 1, "colorId": 3 }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "NormalSystem",
+          "position": { "x": 300, "y": 100 },
+          "inputPorts": ["InfinityPort", "SquarePort", "TrianglePort"],
+          "outputPorts": ["SquarePort"],
+          "initialPackets": []
+        },
+        {
+          "id": 8,
+          "type": "AntiTrojanSystem",
+          "position": { "x": 500, "y": 200 },
+          "inputPorts": ["SquarePort"],
+          "outputPorts": ["SquarePort", "TrianglePort"],
+          "initialPackets": []
+        },
+        {
+          "id": 9,
+          "type": "DistributionSystem",
+          "position": { "x": 800, "y": 300 },
+          "inputPorts": ["TrianglePort"],
+          "outputPorts": ["InfinityPort"],
+          "initialPackets": []
+        },
+        {
+          "id": 10,
+          "type": "MergerSystem",
+          "position": { "x": 200, "y": 400 },
+          "inputPorts": ["InfinityPort"],
+          "outputPorts": ["TrianglePort", "SquarePort"],
+          "initialPackets": []
+        }
+      ],
+      "lines": []
+    },
+
+    {
+      "levelName": "Level 3",
+      "systems": [
+        { "id": 1, "type": "ReferenceSystem", "position": { "x": 100, "y": 100 }, "inputPorts": ["InfinityPort"], "outputPorts": ["InfinityPort", "SquarePort"], "initialPackets": [ { "packetId": 1, "type": "InfinityPacket", "count": 2 }, { "packetId": 2, "type": "SquarePacket", "count": 1 }, { "packetId": 3, "type": "TrianglePacket", "count": 1 } ] },
+        { "id": 2, "type": "ReferenceSystem", "position": { "x": 100, "y": 300 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 4, "type": "InfinityPacket", "count": 1 }, { "packetId": 5, "type": "SquarePacket", "count": 1 }, { "packetId": 6, "type": "TrianglePacket", "count": 1 } ] },
+        { "id": 3, "type": "NormalSystem", "position": { "x": 300, "y": 300 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["TrianglePort"], "initialPackets": [] },
+        { "id": 4, "type": "SpySystem", "position": { "x": 500, "y": 100 }, "inputPorts": ["InfinityPort", "InfinityPort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+        { "id": 5, "type": "VpnSystem", "position": { "x": 700, "y": 200 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [] },
+        { "id": 6, "type": "ReferenceSystem", "position": { "x": 100, "y": 500 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 101, "type": "BigPacket1", "count": 1 }, { "packetId": 102, "type": "SecretPacket2", "count": 1, "colorId": 1 }, { "packetId": 103, "type": "BigPacket2", "count": 1 }, { "packetId": 104, "type": "SecretPacket1", "count": 1, "colorId": 3 } ] },
+        { "id": 7, "type": "NormalSystem", "position": { "x": 300, "y": 100 }, "inputPorts": ["InfinityPort", "SquarePort", "TrianglePort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+        { "id": 8, "type": "AntiTrojanSystem", "position": { "x": 500, "y": 200 }, "inputPorts": ["SquarePort"], "outputPorts": ["SquarePort", "TrianglePort"], "initialPackets": [] },
+        { "id": 9, "type": "DistributionSystem", "position": { "x": 800, "y": 300 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort"], "initialPackets": [] },
+        { "id": 10, "type": "MergerSystem", "position": { "x": 200, "y": 400 }, "inputPorts": ["InfinityPort"], "outputPorts": ["TrianglePort", "SquarePort"], "initialPackets": [] },
+
+        { "id": 11, "type": "ReferenceSystem", "position": { "x": 100, "y": 700 }, "inputPorts": ["InfinityPort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 201, "type": "BigPacket1", "count": 1 }, { "packetId": 202, "type": "SecretPacket1", "count": 1, "colorId": 2 }, { "packetId": 203, "type": "BigPacket2", "count": 1 }, { "packetId": 204, "type": "SecretPacket2", "count": 1, "colorId": 4 } ] },
+        { "id": 12, "type": "NormalSystem", "position": { "x": 300, "y": 700 }, "inputPorts": ["InfinityPort", "SquarePort", "TrianglePort"], "outputPorts": ["TrianglePort"], "initialPackets": [] },
+        { "id": 13, "type": "SpySystem", "position": { "x": 500, "y": 500 }, "inputPorts": ["InfinityPort", "InfinityPort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+        { "id": 14, "type": "DistributionSystem", "position": { "x": 700, "y": 500 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort"], "initialPackets": [] },
+        { "id": 15, "type": "MergerSystem", "position": { "x": 900, "y": 500 }, "inputPorts": ["InfinityPort"], "outputPorts": ["TrianglePort", "SquarePort"], "initialPackets": [] }
+      ],
+      "lines": []
+    },
+
+    {
+      "levelName": "Level 4",
+      "systems": [
+        { "id": 1, "type": "ReferenceSystem", "position": { "x": 100, "y": 100 }, "inputPorts": ["InfinityPort"], "outputPorts": ["InfinityPort", "SquarePort"], "initialPackets": [ { "packetId": 1, "type": "InfinityPacket", "count": 2 }, { "packetId": 2, "type": "SquarePacket", "count": 1 }, { "packetId": 3, "type": "TrianglePacket", "count": 1 } ] },
+        { "id": 2, "type": "ReferenceSystem", "position": { "x": 100, "y": 300 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 4, "type": "InfinityPacket", "count": 1 }, { "packetId": 5, "type": "SquarePacket", "count": 1 }, { "packetId": 6, "type": "TrianglePacket", "count": 1 } ] },
+        { "id": 3, "type": "NormalSystem", "position": { "x": 300, "y": 300 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["TrianglePort"], "initialPackets": [] },
+        { "id": 4, "type": "SpySystem", "position": { "x": 500, "y": 100 }, "inputPorts": ["InfinityPort", "InfinityPort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+        { "id": 5, "type": "VpnSystem", "position": { "x": 700, "y": 200 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [] },
+        { "id": 6, "type": "ReferenceSystem", "position": { "x": 100, "y": 500 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 101, "type": "BigPacket1", "count": 1 }, { "packetId": 102, "type": "SecretPacket2", "count": 1, "colorId": 1 }, { "packetId": 103, "type": "BigPacket2", "count": 1 }, { "packetId": 104, "type": "SecretPacket1", "count": 1, "colorId": 3 } ] },
+        { "id": 7, "type": "NormalSystem", "position": { "x": 300, "y": 100 }, "inputPorts": ["InfinityPort", "SquarePort", "TrianglePort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+        { "id": 8, "type": "AntiTrojanSystem", "position": { "x": 500, "y": 200 }, "inputPorts": ["SquarePort"], "outputPorts": ["SquarePort", "TrianglePort"], "initialPackets": [] },
+        { "id": 9, "type": "DistributionSystem", "position": { "x": 800, "y": 300 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort"], "initialPackets": [] },
+        { "id": 10, "type": "MergerSystem", "position": { "x": 200, "y": 400 }, "inputPorts": ["InfinityPort"], "outputPorts": ["TrianglePort", "SquarePort"], "initialPackets": [] },
+
+        { "id": 11, "type": "ReferenceSystem", "position": { "x": 100, "y": 700 }, "inputPorts": ["InfinityPort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 201, "type": "BigPacket1", "count": 1 }, { "packetId": 202, "type": "SecretPacket1", "count": 1, "colorId": 2 }, { "packetId": 203, "type": "BigPacket2", "count": 1 }, { "packetId": 204, "type": "SecretPacket2", "count": 1, "colorId": 4 } ] },
+        { "id": 12, "type": "NormalSystem", "position": { "x": 300, "y": 700 }, "inputPorts": ["InfinityPort", "SquarePort", "TrianglePort"], "outputPorts": ["TrianglePort"], "initialPackets": [] },
+        { "id": 13, "type": "SpySystem", "position": { "x": 500, "y": 500 }, "inputPorts": ["InfinityPort", "InfinityPort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+        { "id": 14, "type": "DistributionSystem", "position": { "x": 700, "y": 500 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort"], "initialPackets": [] },
+        { "id": 15, "type": "MergerSystem", "position": { "x": 900, "y": 500 }, "inputPorts": ["InfinityPort"], "outputPorts": ["TrianglePort", "SquarePort"], "initialPackets": [] },
+
+        { "id": 16, "type": "ReferenceSystem", "position": { "x": 100, "y": 900 }, "inputPorts": ["SquarePort", "InfinityPort"], "outputPorts": ["InfinityPort", "SquarePort"], "initialPackets": [ { "packetId": 301, "type": "BigPacket1", "count": 1 }, { "packetId": 302, "type": "SecretPacket2", "count": 1, "colorId": 5 }, { "packetId": 303, "type": "BigPacket2", "count": 1 }, { "packetId": 304, "type": "SecretPacket1", "count": 1, "colorId": 6 } ] },
+        { "id": 17, "type": "AntiTrojanSystem", "position": { "x": 400, "y": 850 }, "inputPorts": ["SquarePort"], "outputPorts": ["SquarePort", "TrianglePort"], "initialPackets": [] },
+        { "id": 18, "type": "VpnSystem", "position": { "x": 650, "y": 850 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [] },
+        { "id": 19, "type": "NormalSystem", "position": { "x": 900, "y": 850 }, "inputPorts": ["InfinityPort", "TrianglePort"], "outputPorts": ["TrianglePort"], "initialPackets": [] },
+        { "id": 20, "type": "SpySystem", "position": { "x": 1150, "y": 750 }, "inputPorts": ["InfinityPort", "InfinityPort"], "outputPorts": ["SquarePort"], "initialPackets": [] }
+      ],
+      "lines": []
+    },
+
+    {
+      "levelName": "Level 5",
+      "systems": [
+        { "id": 1, "type": "ReferenceSystem", "position": { "x": 100, "y": 100 }, "inputPorts": ["InfinityPort"], "outputPorts": ["InfinityPort", "SquarePort"], "initialPackets": [ { "packetId": 1, "type": "InfinityPacket", "count": 2 }, { "packetId": 2, "type": "SquarePacket", "count": 1 }, { "packetId": 3, "type": "TrianglePacket", "count": 1 } ] },
+        { "id": 2, "type": "ReferenceSystem", "position": { "x": 100, "y": 300 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 4, "type": "InfinityPacket", "count": 1 }, { "packetId": 5, "type": "SquarePacket", "count": 1 }, { "packetId": 6, "type": "TrianglePacket", "count": 1 } ] },
+        { "id": 3, "type": "NormalSystem", "position": { "x": 300, "y": 300 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["TrianglePort"], "initialPackets": [] },
+        { "id": 4, "type": "SpySystem", "position": { "x": 500, "y": 100 }, "inputPorts": ["InfinityPort", "InfinityPort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+        { "id": 5, "type": "VpnSystem", "position": { "x": 700, "y": 200 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [] },
+        { "id": 6, "type": "ReferenceSystem", "position": { "x": 100, "y": 500 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 101, "type": "BigPacket1", "count": 1 }, { "packetId": 102, "type": "SecretPacket2", "count": 1, "colorId": 1 }, { "packetId": 103, "type": "BigPacket2", "count": 1 }, { "packetId": 104, "type": "SecretPacket1", "count": 1, "colorId": 3 } ] },
+        { "id": 7, "type": "NormalSystem", "position": { "x": 300, "y": 100 }, "inputPorts": ["InfinityPort", "SquarePort", "TrianglePort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+        { "id": 8, "type": "AntiTrojanSystem", "position": { "x": 500, "y": 200 }, "inputPorts": ["SquarePort"], "outputPorts": ["SquarePort", "TrianglePort"], "initialPackets": [] },
+        { "id": 9, "type": "DistributionSystem", "position": { "x": 800, "y": 300 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort"], "initialPackets": [] },
+        { "id": 10, "type": "MergerSystem", "position": { "x": 200, "y": 400 }, "inputPorts": ["InfinityPort"], "outputPorts": ["TrianglePort", "SquarePort"], "initialPackets": [] },
+
+        { "id": 11, "type": "ReferenceSystem", "position": { "x": 100, "y": 700 }, "inputPorts": ["InfinityPort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 201, "type": "BigPacket1", "count": 1 }, { "packetId": 202, "type": "SecretPacket1", "count": 1, "colorId": 2 }, { "packetId": 203, "type": "BigPacket2", "count": 1 }, { "packetId": 204, "type": "SecretPacket2", "count": 1, "colorId": 4 } ] },
+        { "id": 12, "type": "NormalSystem", "position": { "x": 300, "y": 700 }, "inputPorts": ["InfinityPort", "SquarePort", "TrianglePort"], "outputPorts": ["TrianglePort"], "initialPackets": [] },
+        { "id": 13, "type": "SpySystem", "position": { "x": 500, "y": 500 }, "inputPorts": ["InfinityPort", "InfinityPort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+        { "id": 14, "type": "DistributionSystem", "position": { "x": 700, "y": 500 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort"], "initialPackets": [] },
+        { "id": 15, "type": "MergerSystem", "position": { "x": 900, "y": 500 }, "inputPorts": ["InfinityPort"], "outputPorts": ["TrianglePort", "SquarePort"], "initialPackets": [] },
+
+        { "id": 16, "type": "ReferenceSystem", "position": { "x": 100, "y": 900 }, "inputPorts": ["SquarePort", "InfinityPort"], "outputPorts": ["InfinityPort", "SquarePort"], "initialPackets": [ { "packetId": 301, "type": "BigPacket1", "count": 1 }, { "packetId": 302, "type": "SecretPacket2", "count": 1, "colorId": 5 }, { "packetId": 303, "type": "BigPacket2", "count": 1 }, { "packetId": 304, "type": "SecretPacket1", "count": 1, "colorId": 6 } ] },
+        { "id": 17, "type": "AntiTrojanSystem", "position": { "x": 400, "y": 850 }, "inputPorts": ["SquarePort"], "outputPorts": ["SquarePort", "TrianglePort"], "initialPackets": [] },
+        { "id": 18, "type": "VpnSystem", "position": { "x": 650, "y": 850 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [] },
+        { "id": 19, "type": "NormalSystem", "position": { "x": 900, "y": 850 }, "inputPorts": ["InfinityPort", "TrianglePort"], "outputPorts": ["TrianglePort"], "initialPackets": [] },
+        { "id": 20, "type": "SpySystem", "position": { "x": 1150, "y": 750 }, "inputPorts": ["InfinityPort", "InfinityPort"], "outputPorts": ["SquarePort"], "initialPackets": [] },
+
+        { "id": 21, "type": "ReferenceSystem", "position": { "x": 100, "y": 1100 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [ { "packetId": 401, "type": "BigPacket1", "count": 1 }, { "packetId": 402, "type": "SecretPacket1", "count": 1, "colorId": 7 }, { "packetId": 403, "type": "BigPacket2", "count": 1 }, { "packetId": 404, "type": "SecretPacket2", "count": 1, "colorId": 8 } ] },
+        { "id": 22, "type": "DistributionSystem", "position": { "x": 350, "y": 1050 }, "inputPorts": ["TrianglePort"], "outputPorts": ["InfinityPort"], "initialPackets": [] },
+        { "id": 23, "type": "MergerSystem", "position": { "x": 600, "y": 1050 }, "inputPorts": ["InfinityPort"], "outputPorts": ["TrianglePort", "SquarePort"], "initialPackets": [] },
+        { "id": 24, "type": "AntiTrojanSystem", "position": { "x": 850, "y": 1050 }, "inputPorts": ["SquarePort"], "outputPorts": ["SquarePort", "TrianglePort"], "initialPackets": [] },
+        { "id": 25, "type": "VpnSystem", "position": { "x": 1100, "y": 1050 }, "inputPorts": ["SquarePort", "TrianglePort"], "outputPorts": ["InfinityPort", "TrianglePort"], "initialPackets": [] }
+      ],
+      "lines": []
+    }
+  ]
+}

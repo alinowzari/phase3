@@ -1,0 +1,35 @@
+{
+  "totalCoinCount": 100,
+  "levels": [
+    {
+      "levelName": "Level 1",
+      "coins": 0,
+      "wireLength": 5000.0,
+      "passed": false
+    },
+    {
+      "levelName": "Level 2",
+      "coins": 0,
+      "wireLength": 20500.0,
+      "passed": false
+    },
+    {
+      "levelName": "Level 3",
+      "coins": 0,
+      "wireLength": 30500.0,
+      "passed": false
+    },
+    {
+      "levelName": "Level 4",
+      "coins": 0,
+      "wireLength": 40500.0,
+      "passed": false
+    },
+    {
+      "levelName": "Level 5",
+      "coins": 0,
+      "wireLength": 50500.0,
+      "passed": false
+    }
+  ]
+}
