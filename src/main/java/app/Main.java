@@ -1,8 +1,8 @@
 // src/main/java/app/Main.java
 package app;
 
-import controller.LevelsController;
-import controller.MenuController;
+import controller.panels.LevelsController;
+import controller.panels.MenuController;
 import model.LevelsManager;
 import view.LevelsView;
 import view.MenuView;
@@ -46,7 +46,7 @@ public class Main {
             Runnable onContinue = () -> {
                 int idx = levelsManager.firstUnpassedIndex(); // helper from LevelsManager
                 if (idx >= 0) {
-                    levelsController.startLevel(idx);
+                    levelsController.startLevelOffline(idx);
                 }
             };
 

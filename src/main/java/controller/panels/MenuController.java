@@ -1,4 +1,4 @@
-package controller;
+package controller.panels;
 
 import view.MenuView;
 

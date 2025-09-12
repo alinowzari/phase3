@@ -1,5 +1,5 @@
 // controller/LocalGameCommands.java
-package controller;
+package controller.commands;
 
 import model.Line;
 import model.SystemManager;

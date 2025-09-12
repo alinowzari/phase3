@@ -1,5 +1,7 @@
 package controller;
 
+import controller.commands.GameCommand;
+import controller.commands.LocalGameCommand;
 import model.SystemManager;
 import view.GamePanel;
 
@@ -16,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  *   • runs a 60 Hz simulation on a background thread
  *   • repaints on the EDT
  */
-public class GameController {
+public class LocalGameController {
 
     private static final float FIXED_DT   = 1f / 60f;
     private static final float TIME_SCALE = 12f;  // 60 Hz sim tick
@@ -28,7 +30,7 @@ public class GameController {
 
     private ScheduledExecutorService simExec;
 
-    public GameController(SystemManager sm, JPanel cards) {
+    public LocalGameController(SystemManager sm, JPanel cards) {
         this.sm = sm;
 
         /* 1 ▸ view */
@@ -37,9 +39,14 @@ public class GameController {
         ((CardLayout) cards.getLayout()).show(cards, "GAME");
 
         /* 2 ▸ input */
-        GameCommand lgc= new LocalGameCommand(sm);
-        new ConnectionController(lgc, sm, panel);
-
+        GameCommand lgc = new LocalGameCommand(sm);
+        new ConnectionController(
+                /* online = */ false,
+                /* sender = */ null,
+                /* cmds   = */ lgc,
+                /* model  = */ sm,
+                /* canvas = */ panel
+        );
         /* 3 ▸ launch button */
         launchBtn.setBounds(150, 10, 140, 25);
         launchBtn.addActionListener(e -> {

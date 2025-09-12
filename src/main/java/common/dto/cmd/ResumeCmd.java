@@ -5,4 +5,4 @@ package common.dto.cmd;
 public record ResumeCmd(
         long seq,
         long lastTick
-) implements ClientCommand {}
+){}

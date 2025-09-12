@@ -1,5 +1,5 @@
 // controller/GameCommands.java
-package controller;
+package controller.commands;
 
 import model.Line;
 import model.ports.InputPort;
