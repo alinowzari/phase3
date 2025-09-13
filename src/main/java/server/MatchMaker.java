@@ -1,3 +1,53 @@
+//// server/Matchmaker.java
+//package server;
+//
+//import java.util.Objects;
+//import java.util.Queue;
+//import java.util.UUID;
+//
+//final class Matchmaker {
+//    private final Queue<Session> q;
+//    private final model.LevelsManager levels;
+//
+//    Matchmaker(Queue<Session> matchmaking, model.LevelsManager levels) {
+//        this.q = matchmaking; this.levels = levels;
+//    }
+//
+//    /** Find two compatible players (same levelName), remove both, build Room. */
+//    public synchronized Room tryMatch() {
+//        // Peek one candidate; don't remove yet
+//        Session first = q.peek();
+//        if (first == null) return null;
+//
+//        // Find a second with same level
+//        Session second = null;
+//        for (Session s : q) {
+//            if (s != first && Objects.equals(s.levelName, first.levelName)) {
+//                second = s; break;
+//            }
+//        }
+//        if (second == null) return null;
+//
+//        // Remove both (order-agnostic)
+//        q.remove(first);
+//        q.remove(second);
+//
+//        // Build the level session
+//        var lm = levels.getLevelManager(first.levelName);
+//        if (lm == null) return null; // should not happen after JOIN_QUEUE check
+//        LevelSession lvl = lm.newSession();
+//
+//        // Create room
+//        Room r = new Room(UUID.randomUUID().toString(), first, second, first.levelName, lvl);
+//        r.started = true;
+//
+//        // Bind back-refs so COMMANDs are accepted immediately
+//        first.room  = r;
+//        second.room = r;
+//
+//        return r;
+//    }
+//}
 package server;
 
 import model.LevelsManager;
