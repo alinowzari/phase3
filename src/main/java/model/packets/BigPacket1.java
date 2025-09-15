@@ -28,7 +28,7 @@ public class BigPacket1 extends BigPacket {
     public BigPacket1(int colorId) {
         this.colorId = colorId;
         size         = originalSize;
-        type         = Type.BIG;
+        type         = Type.BIG1;
         speed        = BASE_SPEED;
         acceleration = 0f;
     }

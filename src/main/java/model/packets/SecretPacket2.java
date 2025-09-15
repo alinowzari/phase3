@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static model.Type.OTHERS;
+import static model.Type.SECRET2;
 
 public final class SecretPacket2<P extends Packet & MessengerTag> extends Packet {
 
@@ -27,7 +28,7 @@ public final class SecretPacket2<P extends Packet & MessengerTag> extends Packet
 
     public SecretPacket2(ProtectedPacket<P> inner) {
         this.inner = inner;
-        this.type  = OTHERS;
+        this.type  = SECRET2;
         this.size  = 6;
         this.speed = BASE_SPEED;
         this.acceleration = 0f;

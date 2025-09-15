@@ -212,4 +212,9 @@ public abstract class Packet {
     }
     protected void resetPath(){}
     public abstract void wrongPort(Port p);
+    public void scaleCurrentSpeed(float factor) {
+        // multiply whatever internal speed you use for motion
+        this.speed *= factor; // <-- adjust to your actual field name
+    }
+    public Type type(){ return type; }
 }

@@ -10,7 +10,6 @@ import java.util.ArrayList;
 public abstract class BigPacket extends Packet {
 
     protected BigPacket() {
-        this.type         = Type.BIG;
     }
 
     @Override public void wrongPort(Port p) { /* no-op */ }

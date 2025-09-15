@@ -97,4 +97,6 @@ public abstract class System {
 
     public SystemManager getSystemManager() { return systemManager; }
     public int getId() { return id; }
+    public int countOutputPorts() { return outputPorts.size(); }
+    public int countInputPorts() { return inputPorts.size(); }
 }

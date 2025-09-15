@@ -522,4 +522,10 @@ public final class GameClient implements Runnable {
     public String  getSid()  { return sid; }
     public String  getSide() { return mySide; }
     public boolean isOpen()  { return socket != null && socket.isConnected() && !socket.isClosed(); }
+    public void useAbility(common.dto.AbilityType a,
+                           int fromSys, int fromOut,
+                           int toSys,   int toIn,
+                           common.dto.PointDTO at) {
+        send(new common.dto.cmd.UseAbilityCmd(nextSeq(), a, fromSys, fromOut, toSys, toIn, at));
+    }
 }

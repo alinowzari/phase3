@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static model.Type.OTHERS;
+import static model.Type.PROTECTED;
 
 public class ProtectedPacket<P extends Packet & MessengerTag> extends Packet {
 
@@ -24,7 +25,7 @@ public class ProtectedPacket<P extends Packet & MessengerTag> extends Packet {
 
     public ProtectedPacket(P inner) {
         this.inner = inner;
-        this.type  = OTHERS;
+        this.type  = PROTECTED;
         this.size  = inner.getSize() * 2;
 
         switch (ThreadLocalRandom.current().nextInt(1, 4)) {

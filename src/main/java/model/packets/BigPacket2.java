@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static model.Type.BIG;
+import static model.Type.BIG2;
 
 /**
  * BigPacket2
@@ -39,7 +40,7 @@ public class BigPacket2 extends BigPacket {
     public BigPacket2(int colorId) {
         this.colorId = colorId;
         this.size    = originalSize;
-        this.type    = BIG;
+        this.type    = BIG2;
         this.speed   = 3f;
         this.acceleration = 0f;
     }

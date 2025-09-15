@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static model.Type.OTHERS;
+import static model.Type.SECRET1;
 
 public class SecretPacket1 extends Packet {
 
@@ -23,7 +24,7 @@ public class SecretPacket1 extends Packet {
 
     public SecretPacket1() {
         size  = 4;
-        type  = OTHERS;
+        type  = SECRET1;
         speed = FAST;
         acceleration = 0f;
     }

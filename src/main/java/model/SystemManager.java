@@ -41,7 +41,8 @@ public class SystemManager {
     private int              firstCountPacket = 0;
     private int              receivedPacket   = 0;
     private String           levelName;
-
+    private boolean packetSpeedBoostActive = false;
+    private float   packetSpeedBoostFactor = 1.0f;
     // ---- Collision + spatial hashing ----
     private static final int  CELL = 32;
     private final Map<Long, ArrayList<Packet>> grid = new HashMap<>();
@@ -115,6 +116,7 @@ public class SystemManager {
     public void addPacket(Packet p) {
         if (packetIds.add(p.getId())) {
             allPackets.add(p);
+            if (packetSpeedBoostActive) p.scaleCurrentSpeed(packetSpeedBoostFactor);
             if (p instanceof BigPacket big) bigPackets.put(big.getId(), big.split());
         }
     }
@@ -415,7 +417,7 @@ public class SystemManager {
         float base = usedLineLength - oldLen; if (base + newLen > maxLineLength + 0.5f) return false;
         usedLineLength = base + newLen; return true;
     }
-
+    public ArrayList<Line> getAllLines() {return allLines;}
     public void packetDestroyed(Packet p) {
         Line l = p.getLine();
         if (l != null) {
@@ -426,4 +428,29 @@ public class SystemManager {
         allPackets.remove(p);
     }
     public Random getRng() { return rng; }
+    /** Start/stack a global packet-speed boost by multiplying all current packets' speed. */
+    public void startPacketSpeedBoost(float factor) {
+        if (factor <= 0f || Float.isNaN(factor)) return;
+        packetSpeedBoostActive = true;
+        packetSpeedBoostFactor *= factor;
+        for (Packet p : new ArrayList<>(allPackets)) {
+            if (p != null) p.scaleCurrentSpeed(factor);
+        }
+    }
+
+    /** End/unstack a boost: divide all current packets' speed by the same factor. */
+    public void endPacketSpeedBoost(float factor) {
+        if (factor <= 0f || Float.isNaN(factor)) return;
+        float inv = 1f / factor;
+        packetSpeedBoostFactor *= inv;
+        for (Packet p : new ArrayList<>(allPackets)) {
+            if (p != null) p.scaleCurrentSpeed(inv);
+        }
+        // normalize floating drift
+        if (Math.abs(packetSpeedBoostFactor - 1f) < 1e-6f) {
+            packetSpeedBoostActive = false;
+            packetSpeedBoostFactor = 1.0f;
+        }
+    }
+
 }
