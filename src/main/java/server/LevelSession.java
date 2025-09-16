@@ -304,7 +304,7 @@ public final class LevelSession {
 
     // --- core model ---
     public final SystemManager sm;           // your real model
-
+    private static final int SYS_W = 90, SYS_H = 70;
     // --- inbound intents from reader threads ---
     private final ConcurrentLinkedQueue<ClientCommand> pending = new ConcurrentLinkedQueue<>();
 
@@ -342,7 +342,7 @@ public final class LevelSession {
     }
 
     // ===== API for Room to define controllables =====
-    public void setControllables(List<Integer> aSide, List<Integer> bSide) {
+    public void setControllable(List<Integer> aSide, List<Integer> bSide) {
         controllableA.clear(); controllableA.addAll(aSide);
         controllableB.clear(); controllableB.addAll(bSide);
     }
@@ -395,30 +395,41 @@ public final class LevelSession {
     private void addLine(AddLineCmd c) {
         System sysA = sysById(c.fromSystemId());
         System sysB = sysById(c.toSystemId());
-        if (sysA == null || sysB == null) return;
+        if (sysA == null || sysB == null) {
+            java.lang.System.out.println("[LevelSession] addLine reject: bad systemIds " + c);
+            return;
+        }
 
         List<OutputPort> outs = sysA.getOutputPorts();
         List<InputPort>  ins  = sysB.getInputPorts();
-        if (!inRange(c.fromOutputIndex(), outs) || !inRange(c.toInputIndex(), ins)) return;
+        if (!inRange(c.fromOutputIndex(), outs) || !inRange(c.toInputIndex(), ins)) {
+            java.lang.System.out.println("[LevelSession] addLine reject: port index O=" + c.fromOutputIndex()
+                    + " I=" + c.toInputIndex() + " " + c);
+            return;
+        }
 
         OutputPort op = outs.get(c.fromOutputIndex());
         InputPort  ip = ins.get(c.toInputIndex());
 
-        // endpoints must be free
-        if (op.getLine() != null || ip.getLine() != null) return;
-
-        // type match (same check your UI does)
-        if (ip.getType() != op.getType()) return;
-
-        // budget check (straight length preview)
-        if (!sm.canCreateWire(op, ip)) return;
-
-        Line line = new Line(op, ip);
+        if (op.getLine() != null || ip.getLine() != null) {
+            java.lang.System.out.println("[LevelSession] addLine reject: endpoint busy " + c);
+            return;
+        }
+        if (ip.getType() != op.getType()) {
+            java.lang.System.out.println("[LevelSession] addLine reject: type mismatch op=" + op.getType() + " ip=" + ip.getType());
+            return;
+        }
+        if (!sm.canCreateWire(op, ip)) {
+            java.lang.System.out.println("[LevelSession] addLine reject: over wire budget " + c);
+            return;
+        }
+        Line line = new Line(op, ip);           // keep it clean: NO default bends
         op.setLine(line);
         ip.setLine(line);
-        sm.addLine(line);               // updates used length
+        sm.addLine(line);
         sm.recomputeUsedWireLength();
     }
+
 
     private void removeLine(RemoveLineCmd c) {
         Line line = lineByEndpoints(c.fromSystemId(), c.fromOutputIndex(), c.toSystemId(), c.toInputIndex());
@@ -478,14 +489,11 @@ public final class LevelSession {
         System sys = sysById(m.systemId());
         if (sys == null) return;
 
-        // compute delta wire length like your ConnectionController
         Point oldTopLeft = sys.getLocation();
         int dx = m.x() - oldTopLeft.x;
         int dy = m.y() - oldTopLeft.y;
 
-        int incidentBefore = 0;
-        int incidentAfter  = 0;
-
+        int incidentBefore = 0, incidentAfter = 0;
         for (Line l : new ArrayList<>(sm.allLines)) {
             boolean shiftsStart = sys.getOutputPorts().contains(l.getStart());
             boolean shiftsEnd   = sys.getInputPorts().contains(l.getEnd());
@@ -494,13 +502,14 @@ public final class LevelSession {
             incidentBefore += l.lengthPx();
             if (shiftsStart && !shiftsEnd)      incidentAfter += l.lengthIfShiftStartBy(dx, dy);
             else if (!shiftsStart && shiftsEnd) incidentAfter += l.lengthIfShiftEndBy(dx, dy);
-            else                                 incidentAfter += l.lengthPx(); // both on same system → pure translate
+            else                                 incidentAfter += l.lengthPx();
         }
 
         int delta = incidentAfter - incidentBefore;
         if (delta > 0 && !sm.canAffordDelta(delta)) {
-            return; // reject move (over wire budget)
+            return; // reject – would exceed wire budget
         }
+
 
         // accept move
         sys.setLocation(new Point(m.x(), m.y()));
@@ -618,39 +627,129 @@ public final class LevelSession {
     private void onSpeedBoostEnd() {
         sm.endPacketSpeedBoost(BOOST_FACTOR);
     }
-    // ===== snapshot for clients (server → client) =====
 
-//    public NetSnapshotDTO toSnapshot(String roomId, RoomState state, String sideTag) {
-//        var info = new MatchInfoDTO(
-//                roomId, levelId, state, tick, timeLeftMs,
-//                /*scoreA*/ score, /*scoreB*/ 0, // room will fill the opponent score in its own snapshot
-//                sideTag
-//        );
-//        // If you already have a mapper to StateDTO, use it here:
-//        var stateDto = mapper.Mapper.toState(sm); // <-- replace with your actual mapper
-//        var ui = Map.<String, Object>of(
-//                "wireUsed",   sm.getWireUsedPx(),
-//                "wireBudget", (int) sm.getWireBudgetPx(),
-//                // surface ability UI (ammo + per-system cooldowns) for both sides
-//                "ammoA",      new java.util.HashMap<>(arsA.ammo),
-//                "ammoB",      new java.util.HashMap<>(arsB.ammo),
-//                "cooldownsA", new java.util.HashMap<>(arsA.cooldownUntil),
-//                "cooldownsB", new java.util.HashMap<>(arsB.cooldownUntil)
-//        );
-//        return new NetSnapshotDTO(info, stateDto, ui);
-//    }
+// In LevelSession.java
 
+    private static java.awt.Point centerOf(OutputPort op) {
+        var sys  = op.getParentSystem();
+        var outs = sys.getOutputPorts();
+        int i    = outs.indexOf(op);
+        int x0   = sys.getLocation().x, y0 = sys.getLocation().y;
+        return new java.awt.Point(x0 + SYS_W,
+                y0 + (i + 1) * SYS_H / (outs.size() + 1));
+    }
+    private static java.awt.Point centerOf(InputPort ip) {
+        var sys = ip.getParentSystem();
+        var ins = sys.getInputPorts();
+        int i   = ins.indexOf(ip);
+        int x0  = sys.getLocation().x, y0 = sys.getLocation().y;
+        return new java.awt.Point(x0,
+                y0 + (i + 1) * SYS_H / (ins.size() + 1));
+    }
+
+    private static java.util.List<java.awt.Point> orthoPolyline(model.Line l) {
+        var pts = new java.util.ArrayList<java.awt.Point>();
+        pts.add(centerOf(l.getStart()));
+
+        var bends = l.getBendPoints();
+        if (bends != null && !bends.isEmpty()) {
+            for (var b : bends) {
+                pts.add(new java.awt.Point(b.getStart()));
+                pts.add(new java.awt.Point(b.getMiddle()));
+                pts.add(new java.awt.Point(b.getEnd()));
+            }
+        } else {
+            // simple L (horiz then vert)
+            var start = pts.get(0);
+            var end   = centerOf(l.getEnd());
+            pts.add(new java.awt.Point(end.x, start.y));
+        }
+        pts.add(centerOf(l.getEnd()));
+
+        // coalesce collinear points
+        var out = new java.util.ArrayList<java.awt.Point>();
+        for (var p : pts) {
+            if (out.size() < 2) { out.add(p); continue; }
+            var p0 = out.get(out.size()-2);
+            var p1 = out.get(out.size()-1);
+            boolean collinear = (p0.x == p1.x && p1.x == p.x) || (p0.y == p1.y && p1.y == p.y);
+            if (collinear) out.set(out.size()-1, p); else out.add(p);
+        }
+        return out;
+    }
+
+    private java.util.List<java.util.Map<String,Object>> hudLinesFromModel() {
+        var list = new java.util.ArrayList<java.util.Map<String,Object>>();
+        for (model.Line l : sm.allLines) {
+            var poly = new java.util.ArrayList<java.util.Map<String,Integer>>();
+            for (var p : orthoPolyline(l)) {
+                poly.add(java.util.Map.of("x", p.x, "y", p.y));
+            }
+            int fromSys = l.getStart().getParentSystem().getId();
+            int toSys   = l.getEnd().getParentSystem().getId();
+            int fromOut = l.getStart().getParentSystem().getOutputPorts().indexOf(l.getStart());
+            int toIn    = l.getEnd().getParentSystem().getInputPorts().indexOf(l.getEnd());
+            list.add(java.util.Map.of(
+                    "fromSystemId", fromSys,
+                    "fromOutputIndex", fromOut,
+                    "toSystemId", toSys,
+                    "toInputIndex", toIn,
+                    "polyline", poly
+            ));
+        }
+        return list;
+    }
+
+    // Rewrite toSnapshot to include hudLines (leave your mapper as-is)
     public NetSnapshotDTO toSnapshot(String roomId, RoomState state, String sideTag) {
         var info = new MatchInfoDTO(roomId, levelId, state, tick, timeLeftMs, score, 0, sideTag);
-
         var stateDto = mapper.Mapper.toState(sm);
+        var ui = new java.util.HashMap<String,Object>();
+        ui.put("wireUsed",   sm.getWireUsedPx());
+        ui.put("wireBudget", (int) sm.getWireBudgetPx());
+        ui.put("hudLines",   hudLinesFromModel()); // ← key
+        return new NetSnapshotDTO(info, stateDto, ui);
+    }
 
-        var ui = java.util.Map.<String,Object>of(
-                "wireUsed",   sm.getWireUsedPx(),
-                "wireBudget", (int) sm.getWireBudgetPx()
-        );
+    /** Build a drawable polyline for a Line using its bend geometry.
+     *  If the line has no bends yet, synthesize a simple orthogonal route. */
+    private static java.util.List<java.util.Map<String,Integer>> polylineFor(model.Line l) {
+        var out = new java.util.ArrayList<java.util.Map<String,Integer>>();
 
-        return new NetSnapshotDTO(info, stateDto, ui); // match your NetSnapshotDTO ctor
+        // Prefer the real bend geometry if present
+        var bends = l.getBendPoints();
+        if (bends != null && !bends.isEmpty()) {
+            for (var b : bends) {
+                // include feet + middle so the client can draw exact elbows
+                var a = b.getStart();
+                var m = b.getMiddle();
+                var c = b.getEnd();
+                out.add(java.util.Map.of("x", a.x, "y", a.y));
+                out.add(java.util.Map.of("x", m.x, "y", m.y));
+                out.add(java.util.Map.of("x", c.x, "y", c.y));
+            }
+            return out;
+        }
+
+        // Fallback: synthesize a 2-segment orthogonal path
+        final int KICK = 8; // small step out from each system
+        var sA = l.getStart().getParentSystem();
+        var sB = l.getEnd().getParentSystem();
+        java.awt.Point aTL = sA.getLocation();
+        java.awt.Point bTL = sB.getLocation();
+
+        boolean goRight = bTL.x >= aTL.x;
+        // “feet” just outside each box; middle at shared Y
+        var footA = new java.awt.Point(aTL.x + (goRight ? +KICK : -KICK), aTL.y);
+        var footB = new java.awt.Point(bTL.x - (goRight ? +KICK : -KICK), bTL.y);
+        int midY  = aTL.y + (bTL.y - aTL.y) / 2;
+
+        // A -> elbow -> B
+        out.add(java.util.Map.of("x", footA.x, "y", footA.y));
+        out.add(java.util.Map.of("x", footA.x, "y", midY));
+        out.add(java.util.Map.of("x", footB.x, "y", midY));
+        out.add(java.util.Map.of("x", footB.x, "y", footB.y));
+        return out;
     }
 
 

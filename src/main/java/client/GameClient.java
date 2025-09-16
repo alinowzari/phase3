@@ -82,7 +82,8 @@ public final class GameClient implements Runnable {
     }
     @Override public void run() {
         try {
-            connect(); // uses ctor host/port
+            connect();
+            online = true;
         } catch (IOException e) {
             onError.accept("Connect failed: " + e.getMessage());
         }
@@ -192,9 +193,8 @@ public final class GameClient implements Runnable {
         setSeqIfPresent(cmd, seqNum);
         // Build command node and ensure discriminator is present
         ObjectNode cmdNode = Canon.M.valueToTree(cmd);
-        if (!cmdNode.has("type")) {
-            cmdNode.put("type", cmd.getClass().getSimpleName());
-        }
+// Always set canonical type name expected by the server decoder:
+        cmdNode.put("type", cmd.getClass().getSimpleName());
 
         // mac = HMAC(k, lastMac || le64(seq) || canon(cmdNode))
         byte[] body = Canon.bytes(cmdNode);
@@ -433,7 +433,8 @@ public final class GameClient implements Runnable {
                 out.print(Wire.encode(e)); // adds '\n'
                 out.flush();
             }
-        } catch (Exception ex) {
+        }
+        catch (Exception ex) {
             if(!closing) {
                 onError.accept("Send failed: " + ex.getMessage());
             }

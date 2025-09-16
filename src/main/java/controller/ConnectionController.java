@@ -274,8 +274,10 @@ public class ConnectionController extends MouseInputAdapter {
         // ----- Left-click: start wiring -----
         if (SwingUtilities.isLeftMouseButton(e)) {
             if (online) {
-                // ONLINE start: pick output from snapshot and start ghost
-                startPick = canvas.pickOutputAt(p);          // ★ FIX
+                // ONLINE start: try HUD picker, then fallback to geometry
+                startPick = canvas.pickOutputAt(p);
+                if (startPick == null) startPick = pickOutputFallback(p);   // <<< add this
+
                 if (startPick != null) {
                     onlineStartCenter = new Point(startPick.x(), startPick.y());
                     dragStartPoint = p;
@@ -354,6 +356,8 @@ public class ConnectionController extends MouseInputAdapter {
         // ----- ONLINE: finish wire creation (independent of dragSource) ----- // ★ FIX
         if (online && onlineStartCenter != null) {
             var to = canvas.pickInputAt(e.getPoint());
+            if (to == null) to = pickInputFallback(e.getPoint());   // <<< add this
+
             if (startPick != null && to != null) {
                 sender.send(new AddLineCmd(
                         seq.incrementAndGet(),
@@ -366,7 +370,6 @@ public class ConnectionController extends MouseInputAdapter {
             onlineStartCenter = null;
             dragStartPoint = null;
             canvas.repaint();
-            // note: do not fall through to offline branch
             return;
         }
 
@@ -382,7 +385,8 @@ public class ConnectionController extends MouseInputAdapter {
                         movingSystem.getId(),
                         curTopLeft.x, curTopLeft.y
                 ));
-            } else {
+            }
+            else {
                 // OFFLINE: budget check + commit or revert
                 Point curTopLeft = movingSystem.getLocation();
                 int dx = curTopLeft.x - moveStartTopLeft.x;
@@ -435,7 +439,8 @@ public class ConnectionController extends MouseInputAdapter {
                             new PointDTO(hMid.x, hMid.y)
                     ));
                 }
-            } else {
+            }
+            else {
                 editLine.invalidateLengthCache();
                 int newLen = lengthPx(editLine);
                 int delta  = newLen - lenBeforeDrag;
@@ -607,5 +612,33 @@ public class ConnectionController extends MouseInputAdapter {
         double s = 0;
         for (int i = 0; i < pts.size() - 1; i++) s += pts.get(i).distance(pts.get(i+1));
         return (int)Math.round(s);
+    }
+    private GamePanel.PortPick pickOutputFallback(Point p) {
+        for (var sys : model.getAllSystems()) {
+            var outs = sys.getOutputPorts();
+            for (int i = 0; i < outs.size(); i++) {
+                var op = outs.get(i);
+                // Don't over-validate client-side; server will reject if busy/wrong.
+                if (op.contains(p)) {
+                    Point c = op.getCenter();
+                    return new GamePanel.PortPick(sys.getId(), i, c.x, c.y);
+                }
+            }
+        }
+        return null;
+    }
+
+    private GamePanel.PortPick pickInputFallback(Point p) {
+        for (var sys : model.getAllSystems()) {
+            var ins = sys.getInputPorts();
+            for (int i = 0; i < ins.size(); i++) {
+                var ip = ins.get(i);
+                if (ip.contains(p)) {
+                    Point c = ip.getCenter();
+                    return new GamePanel.PortPick(sys.getId(), i, c.x, c.y);
+                }
+            }
+        }
+        return null;
     }
 }

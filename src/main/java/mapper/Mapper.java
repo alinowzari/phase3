@@ -19,7 +19,7 @@ public final class Mapper {
     public static StateDTO toState(SystemManager sm) {
         var packets = toPacketDTOs(sm.allPackets);
         var lines   = toLineDTOs(sm.allLines);
-        var systems = toSystemDTOs(sm.getAllSystems()); // if StateDTO now includes systems
+        var systems = toSystemDTOs(sm.getAllSystems());
         return new StateDTO((int) sm.ctx().tick, packets, lines, systems);
     }
 
@@ -31,7 +31,7 @@ public final class Mapper {
             int y = (pt != null) ? pt.y : 0;
             out.add(new PacketDTO(
                     p.getId(),
-                    packetType(p),     // enum PacketType
+                    packetType(p),
                     x, y,
                     p.hasTrojan(),
                     p.getSize()
@@ -46,16 +46,14 @@ public final class Mapper {
             OutputPort op = l.getStart();
             InputPort  ip = l.getEnd();
 
-            var fromSys  = op.getParentSystem();
-            var toSys    = ip.getParentSystem();
-            int fromId   = fromSys.getId();
-            int toId     = toSys.getId();
-            int outIdx   = fromSys.getOutputPorts().indexOf(op);
-            int inIdx    = toSys.getInputPorts().indexOf(ip);
+            var fromSys = op.getParentSystem();
+            var toSys   = ip.getParentSystem();
+            int fromId  = fromSys.getId();
+            int toId    = toSys.getId();
+            int outIdx  = fromSys.getOutputPorts().indexOf(op);
+            int inIdx   = toSys.getInputPorts().indexOf(ip);
 
-            List<PointDTO> path = l.getPath(6).stream()
-                    .map(p -> new PointDTO(p.x, p.y))
-                    .toList();
+            List<PointDTO> path = toPathDTO(l);   // ← use the new builder
 
             out.add(new LineDTO(fromId, outIdx, toId, inIdx, path));
         }
@@ -69,7 +67,7 @@ public final class Mapper {
             out.add(new SystemDTO(
                     s.getId(),
                     loc.x, loc.y,
-                    systemKind(s),     // enum SystemType if you adopted it
+                    systemKind(s),
                     s.countPackets(),
                     s.countInputPorts(),
                     s.countOutputPorts(),
@@ -87,7 +85,6 @@ public final class Mapper {
         if (p instanceof InfinityPacket)       return PacketType.INFINITY;
         if (p instanceof BitPacket)            return PacketType.BIT;
         if (p instanceof BigPacket) {
-            // map however you defined your enum
             return ((BigPacket) p).getSize() <= 8 ? PacketType.BIG1 : PacketType.BIG2;
         }
         if (p instanceof ProtectedPacket<?>)   return PacketType.PROTECTED;
@@ -107,23 +104,66 @@ public final class Mapper {
         if (s instanceof model.systems.MergerSystem)       return SystemType.MERGER;
         return SystemType.UNKNOWN;
     }
+
     public static List<PortType> toPortTypes(List<? extends Port> ps) {
         List<PortType> out = new ArrayList<>(ps.size());
-        for (Port p : ps) {
-            out.add(mapPortType(p.getType())); // direct map; no if/else needed
-        }
+        for (Port p : ps) out.add(mapPortType(p.getType()));
         return out;
     }
+
     public static PortType mapPortType(Type p) {
         switch (p) {
-            case INFINITY:
-                return PortType.INFINITY;
-            case TRIANGLE:
-                return PortType.TRIANGLE;
-            case SQUARE:
-                return PortType.SQUARE;
-
-                default: return PortType.SQUARE;
+            case INFINITY: return PortType.INFINITY;
+            case TRIANGLE: return PortType.TRIANGLE;
+            case SQUARE:   return PortType.SQUARE;
+            default:       return PortType.SQUARE;
         }
     }
+
+    /* ------------ line path synthesis (orthogonal; MVC-safe) ------------ */
+
+    // Keep in sync with view/server constants.
+    private static final int SYS_W = 90, SYS_H = 70;
+    private static java.awt.Point centerOf(model.ports.OutputPort op) {
+        var s = op.getParentSystem();
+        var outs = s.getOutputPorts();
+        int i = outs.indexOf(op);
+        var loc = s.getLocation();
+        return new java.awt.Point(loc.x + SYS_W,
+                loc.y + (i + 1) * SYS_H / (outs.size() + 1));
+    }
+
+    private static java.awt.Point centerOf(model.ports.InputPort ip) {
+        var s = ip.getParentSystem();
+        var ins = s.getInputPorts();
+        int i = ins.indexOf(ip);
+        var loc = s.getLocation();
+        return new java.awt.Point(loc.x,
+                loc.y + (i + 1) * SYS_H / (ins.size() + 1));
+    }
+    private static java.util.List<common.dto.PointDTO> toPathDTO(model.Line l) {
+        var bends = l.getBendPoints();
+        if (bends != null && !bends.isEmpty()) {
+            var pts = new java.util.ArrayList<common.dto.PointDTO>();
+            var a = centerOf(l.getStart());
+            pts.add(new common.dto.PointDTO(a.x, a.y));
+            for (var b : bends) {
+                pts.add(new common.dto.PointDTO(b.getStart().x,  b.getStart().y));
+                pts.add(new common.dto.PointDTO(b.getMiddle().x, b.getMiddle().y));
+                pts.add(new common.dto.PointDTO(b.getEnd().x,    b.getEnd().y));
+            }
+            var z = centerOf(l.getEnd());
+            pts.add(new common.dto.PointDTO(z.x, z.y));
+            return pts;
+        } else {
+            var a = centerOf(l.getStart());
+            var b = centerOf(l.getEnd());
+            // STRAIGHT: exactly 2 points, no elbows
+            return java.util.List.of(
+                    new common.dto.PointDTO(a.x, a.y),
+                    new common.dto.PointDTO(b.x, b.y)
+            );
+        }
+    }
+
 }

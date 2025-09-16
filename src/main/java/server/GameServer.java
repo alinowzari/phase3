@@ -111,10 +111,6 @@ public final class GameServer {
                     "reconnectToken",  token,       // UUID string
                     "hmacKey",         hmacKeyB64   // Base64 of 32-byte key
             )));
-            NetIO.send(session, Wire.of("HELLO_S", sid, Map.of(
-                    "serverTime", Instant.now().toEpochMilli(),
-                    "reconnectToken", token
-            )));
 
             // read loop
             String line;
@@ -124,7 +120,6 @@ public final class GameServer {
 
                 switch (env.t) {
                     case "PING"      -> NetIO.send(session, Wire.of("PONG", sid, env.data));
-                    case "HELLO_C"   -> { /* reserved */ }
 
                     case "JOIN_QUEUE" -> {
                         String requested = (env.data != null) ? env.data.path("level").asText("") : "";
@@ -167,14 +162,14 @@ public final class GameServer {
                             System.out.println(json("match_started",
                                     java.util.Map.of("roomId", rid, "level", lvl, "a", r.a.sid, "b", r.b.sid)));
                             storeSafe("matchStarted", () -> store.matchStarted(rid, lvl, tokA, tokB));
-
-                            long buildMs = 2_000L; // shorter for tests; bump later
+                            r.a.room = r;
+                            r.b.room = r;
+                            long buildMs = 2_000L;
                             r.beginBuildPhase(buildMs);
-
-                            NetIO.send(r.a, Wire.of("START", r.a.sid,
-                                    java.util.Map.of("side","A","level", lvl, "state","BUILD", "buildMs", buildMs)));
-                            NetIO.send(r.b, Wire.of("START", r.b.sid,
-                                    java.util.Map.of("side","B","level", lvl, "state","BUILD", "buildMs", buildMs)));
+                            NetIO.send(r.a, Wire.of("START", r.a.sid, Map.of(
+                                    "side","A","level", lvl, "state","BUILD", "buildMs", buildMs)));
+                            NetIO.send(r.b, Wire.of("START", r.b.sid, Map.of(
+                                    "side","B","level", lvl, "state","BUILD", "buildMs", buildMs)));
 
                             System.out.println("[ROOM " + rid + "] START sent → A=" + r.a.sid + " B=" + r.b.sid
                                     + " level=" + lvl);

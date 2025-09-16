@@ -21,7 +21,6 @@ public class BendPoint {
     public Point getEnd()    { return end;   }
     public Point getMiddle() { return middle;}
     public void  setMiddle(Point m){ this.middle = m; }
-
     /* ----------------------------------------------------------
      *  Quadratic Bézier sampling:  returns N interior points
      *  (neither endpoint is included – callers add them already)
