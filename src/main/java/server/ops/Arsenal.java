@@ -1,6 +1,6 @@
 package server.ops;
 
-import common.dto.AbilityType;
+import common.AbilityType;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;

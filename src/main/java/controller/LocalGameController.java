@@ -1,7 +1,7 @@
 package controller;
 
-import controller.commands.GameCommand;
-import controller.commands.LocalGameCommand;
+import controller.actions.BuildActions;
+import controller.actions.OfflineBuildActions;
 import model.SystemManager;
 import view.GamePanel;
 
@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Sets up the in-level screen:
  *   • builds a GamePanel from the SystemManager
- *   • installs ConnectionController for wiring
+ *   • installs ConnectionController for wiring (OFFLINE via BuildActions)
  *   • runs a 60 Hz simulation on a background thread
  *   • repaints on the EDT
  */
@@ -38,15 +38,10 @@ public class LocalGameController {
         cards.add(panel, "GAME");
         ((CardLayout) cards.getLayout()).show(cards, "GAME");
 
-        /* 2 ▸ input */
-        GameCommand lgc = new LocalGameCommand(sm);
-        new ConnectionController(
-                /* online = */ false,
-                /* sender = */ null,
-                /* cmds   = */ lgc,
-                /* model  = */ sm,
-                /* canvas = */ panel
-        );
+        /* 2 ▸ input (OFFLINE BuildActions) */
+        BuildActions actions = new OfflineBuildActions(sm);
+        new ConnectionController(false, actions, this.sm, panel);
+
         /* 3 ▸ launch button */
         launchBtn.setBounds(150, 10, 140, 25);
         launchBtn.addActionListener(e -> {
@@ -55,6 +50,7 @@ public class LocalGameController {
         });
         launchBtn.setEnabled(false);
         panel.add(launchBtn);
+
         saveBtn.setBounds(300, 10, 120, 25);
         saveBtn.addActionListener(e -> {
             var cfgMgr    = config.ConfigManager.getInstance();
@@ -68,6 +64,7 @@ public class LocalGameController {
         /* 4 ▸ start simulation (off the EDT) */
         startSimulation();
     }
+
     private void startSimulation() {
         simExec = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "SimThread");
@@ -77,12 +74,15 @@ public class LocalGameController {
         simExec.scheduleAtFixedRate(() -> {
             try {
                 sm.update(FIXED_DT * TIME_SCALE);
+                if(sm.isReady()){
+                    launchBtn.setEnabled(true);
+                }
                 var snap = mapper.Mapper.toState(sm);
                 SwingUtilities.invokeLater(() -> panel.setSnapshot(snap));
             } catch (Throwable t) {
                 t.printStackTrace();
             }
-        }, 0, 16, TimeUnit.MILLISECONDS);// ~60 FPS cadence
+        }, 0, 16, TimeUnit.MILLISECONDS); // ~60 FPS cadence
     }
 
     /** Call when leaving the level */

@@ -1,7 +1,7 @@
 // mapper/Mapper.java
 package mapper;
 
-import common.dto.*;
+import common.*;
 import model.*;
 import model.System;
 import model.packets.*;
@@ -53,9 +53,9 @@ public final class Mapper {
             int outIdx  = fromSys.getOutputPorts().indexOf(op);
             int inIdx   = toSys.getInputPorts().indexOf(ip);
 
-            List<PointDTO> path = toPathDTO(l);   // ← use the new builder
-
-            out.add(new LineDTO(fromId, outIdx, toId, inIdx, path));
+            List<PointDTO> path = toPathDTO(l);
+            List<BendDTO> bends= toBendDTO(l);
+            out.add(new LineDTO(fromId, outIdx, toId, inIdx, path,bends ));
         }
         return out;
     }
@@ -63,6 +63,10 @@ public final class Mapper {
     public static List<SystemDTO> toSystemDTOs(List<System> systems) {
         var out = new ArrayList<SystemDTO>(systems.size());
         for (System s : systems) {
+            ArrayList<PacketType> packets = new ArrayList<>();
+            for (Packet p : s.getPackets()) {
+                packets.add(packetType(p));
+            }
             var loc = s.getLocation();
             out.add(new SystemDTO(
                     s.getId(),
@@ -72,7 +76,8 @@ public final class Mapper {
                     s.countInputPorts(),
                     s.countOutputPorts(),
                     toPortTypes(s.getInputPorts()),
-                    toPortTypes(s.getOutputPorts())
+                    toPortTypes(s.getOutputPorts()),
+                    packets
             ));
         }
         return out;
@@ -141,29 +146,39 @@ public final class Mapper {
         return new java.awt.Point(loc.x,
                 loc.y + (i + 1) * SYS_H / (ins.size() + 1));
     }
-    private static java.util.List<common.dto.PointDTO> toPathDTO(model.Line l) {
+    private static java.util.List<PointDTO> toPathDTO(model.Line l) {
         var bends = l.getBendPoints();
         if (bends != null && !bends.isEmpty()) {
-            var pts = new java.util.ArrayList<common.dto.PointDTO>();
+            var pts = new java.util.ArrayList<PointDTO>();
             var a = centerOf(l.getStart());
-            pts.add(new common.dto.PointDTO(a.x, a.y));
+            pts.add(new PointDTO(a.x, a.y));
             for (var b : bends) {
-                pts.add(new common.dto.PointDTO(b.getStart().x,  b.getStart().y));
-                pts.add(new common.dto.PointDTO(b.getMiddle().x, b.getMiddle().y));
-                pts.add(new common.dto.PointDTO(b.getEnd().x,    b.getEnd().y));
+                pts.add(new PointDTO(b.getStart().x,  b.getStart().y));
+                pts.add(new PointDTO(b.getMiddle().x, b.getMiddle().y));
+                pts.add(new PointDTO(b.getEnd().x,    b.getEnd().y));
             }
             var z = centerOf(l.getEnd());
-            pts.add(new common.dto.PointDTO(z.x, z.y));
+            pts.add(new PointDTO(z.x, z.y));
             return pts;
         } else {
             var a = centerOf(l.getStart());
             var b = centerOf(l.getEnd());
             // STRAIGHT: exactly 2 points, no elbows
             return java.util.List.of(
-                    new common.dto.PointDTO(a.x, a.y),
-                    new common.dto.PointDTO(b.x, b.y)
+                    new PointDTO(a.x, a.y),
+                    new PointDTO(b.x, b.y)
             );
         }
     }
-
+    private static List<BendDTO> toBendDTO(model.Line l) {
+        var list = new java.util.ArrayList<BendDTO>(l.getBendPoints().size());
+        for (var b : l.getBendPoints()) {
+            list.add(new BendDTO(
+                    new PointDTO(b.getStart().x,  b.getStart().y),
+                    new PointDTO(b.getMiddle().x, b.getMiddle().y),
+                    new PointDTO(b.getEnd().x,    b.getEnd().y)
+            ));
+        }
+        return list;
+    }
 }

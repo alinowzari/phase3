@@ -1,16 +1,14 @@
 package server;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import common.dto.RoomState;
-import common.dto.cmd.ClientCommand;
-import common.dto.cmd.marker.ActivePhaseCmd;
-import common.dto.cmd.marker.AnyPhaseCmd;
-import common.dto.cmd.marker.BuildPhaseCmd;
-import common.dto.util.Canon;
-import net.Wire;
+import common.AbilityType;
+import common.PointDTO;
+import common.cmd.*;
+import common.RoomState;
+import common.cmd.marker.ActivePhaseCmd;
+import common.cmd.marker.AnyPhaseCmd;
+import common.cmd.marker.BuildPhaseCmd;
 
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -118,7 +116,7 @@ final class Room {
                 // ↓↓↓ decode without leaving "type" in the JSON sent to Jackson
                 ClientCommand cmd = decodeCmd(cmdNode);
 
-                if (cmd instanceof common.dto.cmd.ReadyCmd) {
+                if (cmd instanceof ReadyCmd) {
                     if (s == a) readyA = true; else if (s == b) readyB = true;
                 } else {
                     level.enqueue(cmd);
@@ -147,44 +145,44 @@ final class Room {
         int   ti  = on.path("toInputIndex").asInt(-1);
 
         // tiny helper for points
-        java.util.function.Function<com.fasterxml.jackson.databind.JsonNode, common.dto.PointDTO> P =
-                j -> new common.dto.PointDTO(j.path("x").asInt(), j.path("y").asInt());
+        java.util.function.Function<com.fasterxml.jackson.databind.JsonNode, PointDTO> P =
+                j -> new PointDTO(j.path("x").asInt(), j.path("y").asInt());
 
         switch (t) {
             case "AddLineCmd", "addLine" -> {
-                return new common.dto.cmd.AddLineCmd(seq, fs, fo, ts, ti);
+                return new AddLineCmd(seq, fs, fo, ts, ti);
             }
             case "RemoveLineCmd", "removeLine" -> {
-                return new common.dto.cmd.RemoveLineCmd(seq, fs, fo, ts, ti);
+                return new RemoveLineCmd(seq, fs, fo, ts, ti);
             }
             case "MoveSystemCmd", "moveSystem" -> {
                 int sysId = on.path("systemId").asInt();
                 int x     = on.path("x").asInt();
                 int y     = on.path("y").asInt();
-                return new common.dto.cmd.MoveSystemCmd(seq, sysId, x, y);
+                return new MoveSystemCmd(seq, sysId, x, y);
             }
             case "AddBendCmd", "addBend" -> {
                 var footA  = P.apply(on.path("footA"));
                 var middle = P.apply(on.path("middle"));
                 var footB  = P.apply(on.path("footB"));
-                return new common.dto.cmd.AddBendCmd(seq, fs, fo, ts, ti, footA, middle, footB);
+                return new AddBendCmd(seq, fs, fo, ts, ti, footA, middle, footB);
             }
             case "MoveBendCmd", "moveBend" -> {
                 int bendIndex = on.path("bendIndex").asInt();
                 var newMid    = P.apply(on.path("newMiddle"));
-                return new common.dto.cmd.MoveBendCmd(seq, fs, fo, ts, ti, bendIndex, newMid);
+                return new MoveBendCmd(seq, fs, fo, ts, ti, bendIndex, newMid);
             }
             case "UseAbilityCmd", "useAbility" -> {
                 String aStr = on.path("ability").asText();
-                var ability = common.dto.AbilityType.valueOf(aStr);
+                var ability = AbilityType.valueOf(aStr);
                 var at      = P.apply(on.path("at"));
-                return new common.dto.cmd.UseAbilityCmd(seq, ability, fs, fo, ts, ti, at);
+                return new UseAbilityCmd(seq, ability, fs, fo, ts, ti, at);
             }
             case "ReadyCmd", "ready" -> {
-                return new common.dto.cmd.ReadyCmd(seq);
+                return new ReadyCmd(seq);
             }
             case "LaunchCmd", "launch" -> {
-                return new common.dto.cmd.LaunchCmd(seq);
+                return new LaunchCmd(seq);
             }
             default -> throw new IllegalArgumentException("unknown cmd type: " + t);
         }

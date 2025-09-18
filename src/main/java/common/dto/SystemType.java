@@ -1,3 +1,0 @@
-package common.dto;
-
-public enum SystemType { REFERENCE, NORMAL, SPY, VPN, ANTI_TROJAN, DESTROYER, DISTRIBUTION, MERGER ,UNKNOWN}

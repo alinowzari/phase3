@@ -19,6 +19,9 @@ import java.awt.Point;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static view.GamePanel.H;
+import static view.GamePanel.W;
+
 public class LevelsManager {
     public static GameStatus gameStatus = new GameStatus();
     private final List<GameConfig> configs;
@@ -52,8 +55,8 @@ public class LevelsManager {
                 // port centers (must match view.SystemView.WIDTH/HEIGHT)
                 int sysX = sc.position().x();
                 int sysY = sc.position().y();
-                int sysW = view.SystemView.WIDTH;
-                int sysH = view.SystemView.HEIGHT;
+                int sysW = W;
+                int sysH = H;
 
                 // inputs on the left
                 List<String> inNames = sc.inputPorts();

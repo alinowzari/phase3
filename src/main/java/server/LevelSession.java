@@ -273,11 +273,12 @@
 // src/main/java/server/LevelSession.java
 package server;
 
-import common.dto.NetSnapshotDTO;
-import common.dto.MatchInfoDTO;
-import common.dto.RoomState;
-import common.dto.PointDTO;
-import common.dto.cmd.*;
+import common.AbilityType;
+import common.NetSnapshotDTO;
+import common.MatchInfoDTO;
+import common.RoomState;
+import common.PointDTO;
+import common.cmd.*;
 import model.BendPoint;
 import model.Line;
 import model.System;
@@ -289,7 +290,6 @@ import server.ops.Arsenal;
 import java.awt.Point;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -545,17 +545,17 @@ public final class LevelSession {
                 line.addZeroAccelPoint(at);
             }
             case WRATH_OF_PENIA -> {
-                if (!myArs.take(common.dto.AbilityType.WRATH_OF_PENIA)) return;
+                if (!myArs.take(AbilityType.WRATH_OF_PENIA)) return;
                 myArs.arm(u.fromSystemId(), now);
                 effects.add(new PeriodicInjector(oppCtr, now));
             }
             case WRATH_OF_AERGIA -> {
-                if (!myArs.take(common.dto.AbilityType.WRATH_OF_AERGIA)) return;
+                if (!myArs.take(AbilityType.WRATH_OF_AERGIA)) return;
                 myArs.arm(u.fromSystemId(), now);
                 effects.add(new Aergia(oppArs, now));
             }
             case SPEED_BOOST -> {
-                if (!myArs.take(common.dto.AbilityType.SPEED_BOOST)) return;
+                if (!myArs.take(AbilityType.SPEED_BOOST)) return;
                 myArs.arm(u.fromSystemId(), now);
                 effects.add(new SpeedBoost(now));
             }

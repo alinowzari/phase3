@@ -1,12 +1,11 @@
 package server;
 
 import com.sun.net.httpserver.HttpServer;
-import common.dto.RoomState;
-import common.dto.util.Hex;
+import common.RoomState;
+import common.util.Hex;
 import net.Wire;
 import net.Wire.Envelope;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import model.LevelsManager;
@@ -261,7 +260,7 @@ public final class GameServer {
                         if (r != null && r.started) {
                             final String side = (r.a == session) ? "A" : "B";
                             final long buildMsLeft =
-                                    (r.state == common.dto.RoomState.BUILD)
+                                    (r.state == RoomState.BUILD)
                                             ? Math.max(0L, r.buildDeadlineMs - System.currentTimeMillis())
                                             : 0L;
 
@@ -325,7 +324,7 @@ public final class GameServer {
 
         Room r = s.room;
         if (r != null) {
-            boolean wasActive = (r.state == common.dto.RoomState.ACTIVE);
+            boolean wasActive = (r.state == RoomState.ACTIVE);
             r.started = false;
 
             if (r.a == s && r.b != null) {

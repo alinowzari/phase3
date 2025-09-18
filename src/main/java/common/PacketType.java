@@ -1,0 +1,3 @@
+package common;
+
+public enum PacketType { SQUARE, TRIANGLE, INFINITY, BIG1, BIG2, SECRET1, SECRET2, PROTECTED,BIT,UNKNOWN }

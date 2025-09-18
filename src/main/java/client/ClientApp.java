@@ -1,16 +1,15 @@
 // src/main/java/client/ClientApp.java
 package client;
 
-import common.dto.NetSnapshotDTO;
-import common.dto.cmd.ClientCommand;
-import common.dto.cmd.LaunchCmd;
+import common.NetSnapshotDTO;
+import common.cmd.ClientCommand;
+import common.cmd.LaunchCmd;
 import model.LevelsManager;
 import model.SystemManager;
 import view.GamePanel;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.List;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -100,14 +99,14 @@ public final class ClientApp {
         sp.setBounds(20, 120, 520, 140);
         p.add(sp);
 
+// inside buildConnectCard(...) – the Connect button handler
         connectBtn.addActionListener(e -> {
             String host = hostField.getText().trim();
             int port = safePort(portField.getText().trim(), 5555);
 
-            // Create client once per Connect press
             client = new GameClient(host, port);
 
-            // Wire basic logs/errors to the textarea
+            // log/errors to textarea
             client.setLogHandler(msg -> SwingUtilities.invokeLater(() -> {
                 log.append("[LOG] " + msg + "\n");
                 log.setCaretPosition(log.getDocument().getLength());
@@ -118,42 +117,24 @@ public final class ClientApp {
                 JOptionPane.showMessageDialog(frame, msg, "Network Error", JOptionPane.ERROR_MESSAGE);
             }));
 
-            // When the match STARTs, we create the GAME card and show it
+            // IMPORTANT: On START, hand off to OnlineGameController
             client.setStartHandler(side -> SwingUtilities.invokeLater(() -> {
                 String levelName = chosenLevel.get();
-                ensureGameCard(levelName); // builds mirror + panel + controller
-                launchBtn.setEnabled(true); // launch is allowed during BUILD phase
-                cards.show(root, "GAME");
+                SystemManager mirror = levelToSystemManager(levelName);
+                if (mirror == null) mirror = levelToSystemManager("default");
+                if (mirror == null) {
+                    JOptionPane.showMessageDialog(frame,
+                            "Could not load level layout locally.\n" +
+                                    "You can still connect, but boxes/ports won’t render.",
+                            "Level Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                // OnlineGameController will add the panel to 'root' and show it
+                new controller.OnlineGameController(mirror, root, client, levelName);
             }));
 
-            // Snapshots: paint authoritative state (lines/packets [+ systems if you added them])
-            client.setSnapshotHandler((NetSnapshotDTO snap) ->
-                    SwingUtilities.invokeLater(() -> {
-                        if (gamePanel != null && snap != null && snap.state() != null) {
-                            // Pass just the inner state to the canvas
-                            gamePanel.setSnapshot(snap.state());
-                            // Optional HUD: pull numbers from UI map if present
-                            var ui = snap.ui();
-                            if (ui != null) {
-                                Object used = ui.get("wireUsed");
-                                Object cap  = ui.get("wireBudget");
-                                // If you added setters for HUD numbers, call them here.
-                                // e.g., gamePanel.setHud(used, cap);
-                            }
-                        }
-                    })
-            );
-
-            // Opponent left information (optional)
-            client.setOpponentLeftHandler(msg ->
-                    SwingUtilities.invokeLater(() ->
-                            JOptionPane.showMessageDialog(frame,
-                                    "Opponent left: " + msg, "Match Ended",
-                                    JOptionPane.INFORMATION_MESSAGE)));
-
             try {
-                client.connect(); // non-blocking; readLoop runs on its own thread
-                // Move to level picker card on successful connect
+                client.connect();         // non-blocking
                 cards.show(root, "QUEUE");
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(frame, "Connect failed: " + ex.getMessage(),
@@ -201,9 +182,7 @@ public final class ClientApp {
                 JOptionPane.showMessageDialog(frame, "Not connected.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            // Tell the client which level to queue for.
-            client.setDesiredLevel(level);
-            // It will automatically send JOIN_QUEUE when HELLO_S arrives (or immediately if sid known).
+            client.setDesiredLevel(level); // matchmaker will use this
             JOptionPane.showMessageDialog(frame,
                     "Queued for level: " + level + "\nWaiting for opponent...",
                     "Matchmaking", JOptionPane.INFORMATION_MESSAGE);
@@ -220,67 +199,6 @@ public final class ClientApp {
         root.add(p, "QUEUE");
     }
 
-    /**
-     * Lazily build the GAME card after we know the level (on START).
-     * Creates the mirror SystemManager for drawing boxes/ports, then wires
-     * the ConnectionController in ONLINE mode (commands → server, no local sim).
-     */
-    private void ensureGameCard(String levelName) {
-        if (gamePanel != null) return; // already built
-
-        // 1) Build a view-only mirror SystemManager for that level
-        mirror = levelToSystemManager(levelName);
-        if (mirror == null) {
-            mirror = levelToSystemManager("default");
-        }
-        if (mirror == null) {
-            JOptionPane.showMessageDialog(frame,
-                    "Could not load level layout locally.\n" +
-                            "You can still connect, but boxes/ports won’t render.",
-                    "Level Error", JOptionPane.ERROR_MESSAGE);
-            // Abort creating the GAME card; stay on QUEUE screen
-            return;
-        }
-        // 2) Create the canvas and a top-bar with Launch/Back buttons
-        JPanel gameCard = new JPanel(new BorderLayout());
-        JPanel top = new JPanel(null);
-        top.setPreferredSize(new Dimension(100, 48));
-        launchBtn = new JButton("Launch");
-        launchBtn.setEnabled(false);
-        launchBtn.setBounds(16, 10, 100, 28);
-        JButton leaveBtn = new JButton("Leave");
-        leaveBtn.setBounds(130, 10, 100, 28);
-        top.add(launchBtn);
-        top.add(leaveBtn);
-
-        // 3) Create the game panel
-        gamePanel = new GamePanel(mirror);
-
-        // 4) Wire the ONLINE input controller (commands only — no local mutations)
-        new controller.ConnectionController(
-                /* online = */ true,
-                /* sender = */ (ClientCommand cmd) -> client.send(cmd),
-                /* cmds   = */ null,
-                /* model  = */ mirror,
-                /* canvas = */ gamePanel
-        );
-
-        // 5) Buttons
-        launchBtn.addActionListener(e ->
-                client.send(new LaunchCmd(client.nextSeq()))
-        );
-        leaveBtn.addActionListener(e -> {
-            try { if (client != null) client.close(); } catch (Exception ignore) {}
-            // Reset game card so a new START rebuilds it fresh
-            gamePanel = null;
-            mirror = null;
-            cards.show(root, "QUEUE");
-        });
-
-        gameCard.add(top, BorderLayout.NORTH);
-        gameCard.add(gamePanel, BorderLayout.CENTER);
-        root.add(gameCard, "GAME");
-    }
 
     /* ========================= Helpers ========================= */
 

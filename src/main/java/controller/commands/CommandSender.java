@@ -1,7 +1,8 @@
 package controller.commands;
 
-import common.dto.cmd.ClientCommand;
+import common.cmd.ClientCommand;
 
 public interface CommandSender {
+    long nextSeq();
     void send(ClientCommand cmd);
 }

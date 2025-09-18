@@ -12,7 +12,7 @@ import java.util.List;
 public abstract class Packet {
 
     // ----- identity / type -----
-    IdGenerator idGenerator=new IdGenerator();            // keep for compatibility
+    private static final java.util.concurrent.atomic.AtomicInteger NEXT_ID = new java.util.concurrent.atomic.AtomicInteger(1);        // keep for compatibility
     private int id;
     protected Type type;
     protected int  size;
@@ -46,7 +46,7 @@ public abstract class Packet {
     protected boolean trojan;
 
     // ----- ctor -----
-    protected Packet() { this.id = idGenerator.nextPacketId();}
+    protected Packet() { this.id = NEXT_ID.getAndIncrement();}
 
     // ======= abstract movement (subclasses implement) =======
     public abstract void advance(float dt);

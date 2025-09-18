@@ -2,8 +2,8 @@
 package tools;
 
 import client.GameClient;
-import common.dto.NetSnapshotDTO;
-import common.dto.cmd.LaunchCmd;
+import common.NetSnapshotDTO;
+import common.cmd.LaunchCmd;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

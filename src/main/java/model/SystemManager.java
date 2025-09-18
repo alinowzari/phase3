@@ -452,5 +452,42 @@ public class SystemManager {
             packetSpeedBoostFactor = 1.0f;
         }
     }
+    public System getSystemById(int id) {
+        for (System sys : systems){
+            if (sys.getId() == id){
+                return sys;
+            }
+        }
+        return null;
+    }
+    /** Compute total change in incident wire length if 'system' moved by (dx,dy).
+     *  Pure: does NOT mutate lines, bends, or budget. */
+    public int incidentLengthDeltaForMove(System system, int dx, int dy) {
+        if (system == null || (dx == 0 && dy == 0)) return 0;
+
+        int before = 0;
+        int after  = 0;
+
+        for (Line l : allLines) {
+            boolean shiftsStart = system.getOutputPorts().contains(l.getStart());
+            boolean shiftsEnd   = system.getInputPorts().contains(l.getEnd());
+            if (!shiftsStart && !shiftsEnd) continue;
+
+            int lenNow = l.lengthPx();
+            before += lenNow;
+
+            if (shiftsStart && !shiftsEnd) {
+                after += l.lengthIfShiftStartBy(dx, dy);
+            } else if (!shiftsStart && shiftsEnd) {
+                after += l.lengthIfShiftEndBy(dx, dy);
+            } else {
+                // Both endpoints belong to the same system; treat as unchanged.
+                // (If your bends are world-fixed and should change length here, adjust this.)
+                after += lenNow;
+            }
+        }
+        return after - before;
+    }
+
 
 }

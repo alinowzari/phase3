@@ -86,7 +86,7 @@ public class Line {
         ArrayList<Point> path = new ArrayList<>();
         Point current = start.getCenter();
         path.add(current);
-
+        smoothness = 6;
         ArrayList<BendPoint> ordered = new ArrayList<>(bendPoints);
         ordered.sort((b1, b2) -> Double.compare(projectionT(b1.getMiddle()), projectionT(b2.getMiddle())));
         for (BendPoint bp : ordered) {
@@ -258,4 +258,5 @@ public class Line {
             best = Math.min(best, ptToSegmentDist(p, pts.get(i), pts.get(i+1)));
         return best;
     }
+    public ArrayList<BendPoint> getBends() {return bendPoints;}
 }
