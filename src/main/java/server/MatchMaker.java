@@ -51,6 +51,7 @@
 package server;
 
 import model.LevelsManager;
+import model.System;
 import model.SystemManager;
 
 import java.util.Iterator;
@@ -86,9 +87,13 @@ final class Matchmaker {
     }
 
     private Room startRoom(Session a, Session b, String levelName) {
-        SystemManager sm = levels.getLevelManager(levelName);
-        if (sm == null) sm = new SystemManager(new model.Loader.GameStatus(), levelName);
-        LevelSession level = new LevelSession(levelName, sm, 180_000L);
+        SystemManager smA = levels.getSystemManagerByName(null, levelName); // or rebuild from config
+        SystemManager smB = levels.getSystemManagerByName(null, levelName);
+        boolean sameRef = (smA == smB);
+        java.lang.System.out.println("[LEVELS] smA == smB? " + sameRef
+                + "  smA@" + java.lang.System.identityHashCode(smA)
+                + "  smB@" + java.lang.System.identityHashCode(smB));
+        LevelSession level = new LevelSession(levelName, smA, smB, 180_000L);
 
         String roomId = UUID.randomUUID().toString();
         Room r = new Room(roomId, a, b, levelName, level);

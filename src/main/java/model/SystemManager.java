@@ -68,7 +68,7 @@ public class SystemManager {
         this.ctx = new SimulationContext(seed);
         this.gameStatus = gameStatus;
         this.levelName  = levelName;
-        this.maxLineLength = (gameStatus != null) ? gameStatus.getWireLength(levelName) : 0;
+        this.maxLineLength = (gameStatus != null) ? gameStatus.getWireLength(levelName) : 2000;
         this.winCommitted  = (gameStatus != null) && gameStatus.isLevelPassed(levelName);
     }
 
@@ -371,9 +371,12 @@ public class SystemManager {
     }
 
     // coins/layout/win
-    public int  getTotalCoins() { return (gameStatus != null) ? gameStatus.getTotalCoin() : 0; }
+    public int  getTotalCoins() {
+        return (gameStatus != null) ? gameStatus.getTotalCoin() : 0; }
     public boolean spendTotalCoins(int amount) {
-        if (gameStatus == null) return false;
+        if (gameStatus == null) {
+            return false;
+        }
         int cur = gameStatus.getTotalCoin(); if (cur < amount) return false;
         gameStatus.setTotalCoin(cur - amount); return true;
     }
@@ -382,7 +385,9 @@ public class SystemManager {
         if (winCommitted) return; winCommitted = true;
 
         recomputeUsedWireLength();
-        if (gameStatus != null) gameStatus.commitWin(levelName, coinCount);
+        if (gameStatus != null) {
+            gameStatus.commitWin(levelName, coinCount);
+        }
 
         var cfgMgr    = config.ConfigManager.getInstance();
         var curConfig = cfgMgr.getConfig();

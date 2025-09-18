@@ -16,6 +16,7 @@ import model.ports.outputs.*;
 import model.systems.*;
 
 import java.awt.Point;
+import java.io.ObjectInputFilter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -26,14 +27,14 @@ public class LevelsManager {
     public static GameStatus gameStatus = new GameStatus();
     private final List<GameConfig> configs;
     private final List<SystemManager> levelManagers;
-
+    private final HashMap<String, GameConfig> gameConfigsByName=new HashMap<>();
     public LevelsManager() {
         this.configs = ConfigManager.getInstance().getAllLevels();
         this.levelManagers = new ArrayList<>(configs.size());
 
         for (GameConfig cfg : configs) {
             SystemManager sm = new SystemManager(gameStatus, cfg.levelName());
-
+            gameConfigsByName.put(cfg.levelName(), cfg);
             // ---------- build systems ----------
             for (SystemConfig sc : cfg.systems()) {
                 List<InputPort>  inputPorts  = new ArrayList<>();
@@ -284,5 +285,111 @@ public class LevelsManager {
         // If your GameStatus uses a different accessor, change this line to match:
         // e.g., status.isLevelPassed(levelName) or status.getPassed(levelName)
         return status.isPassed(levelName);
+    }
+
+    public SystemManager getSystemManagerByName(GameStatus status, String name) {
+        SystemManager sm = new SystemManager(status, name);
+        GameConfig cfg=gameConfigsByName.get(name);
+        if (cfg == null) return null;
+        else{
+            for (SystemConfig sc : cfg.systems()) {
+                List<InputPort>  inputPorts  = new ArrayList<>();
+                List<OutputPort> outputPorts = new ArrayList<>();
+                Point loc = new Point(sc.position().x(), sc.position().y());
+
+                System sys = switch (sc.type()) {
+                    case "ReferenceSystem"    -> new ReferenceSystem    (loc, inputPorts, outputPorts, sm, sc.id());
+                    case "NormalSystem"       -> new NormalSystem       (loc, inputPorts, outputPorts, sm, sc.id());
+                    case "SpySystem"          -> new SpySystem          (loc, inputPorts, outputPorts, sm, sc.id());
+                    case "VpnSystem"          -> new VpnSystem          (loc, inputPorts, outputPorts, sm, sc.id());
+                    case "AntiTrojanSystem"   -> new AntiTrojanSystem   (loc, inputPorts, outputPorts, sm, sc.id());
+                    case "DestroyerSystem"    -> new DestroyerSystem    (loc, inputPorts, outputPorts, sm, sc.id());
+                    case "DistributionSystem" -> new DistributionSystem (loc, inputPorts, outputPorts, sm, sc.id());
+                    case "MergerSystem"       -> new MergerSystem       (loc, inputPorts, outputPorts, sm, sc.id());
+                    default -> new ReferenceSystem(loc, inputPorts, outputPorts, sm, sc.id());
+                };
+
+                // port centers (must match view.SystemView.WIDTH/HEIGHT)
+                int sysX = sc.position().x();
+                int sysY = sc.position().y();
+                int sysW = W;
+                int sysH = H;
+
+                // inputs on the left
+                List<String> inNames = sc.inputPorts();
+                for (int i = 0; i < inNames.size(); i++) {
+                    int x = sysX;
+                    int y = sysY + (i + 1) * sysH / (inNames.size() + 1);
+                    inputPorts.add(makeInputPort(sys, new Point(x, y), inNames.get(i)));
+                }
+
+                // outputs on the right
+                List<String> outNames = sc.outputPorts();
+                for (int i = 0; i < outNames.size(); i++) {
+                    int x = sysX + sysW;
+                    int y = sysY + (i + 1) * sysH / (outNames.size() + 1);
+                    outputPorts.add(makeOutputPort(sys, new Point(x, y), outNames.get(i)));
+                }
+
+                sm.addSystem(sys);
+
+                // initial packets
+                for (PacketConfig pc : sc.initialPackets()) {
+                    for (int i = 0; i < pc.count(); i++) {
+                        Packet pkt = switch (pc.type()) {
+                            case "SquarePacket"   -> new SquarePacket();
+                            case "TrianglePacket" -> new TrianglePacket();
+                            case "InfinityPacket" -> new InfinityPacket();
+                            case "BigPacket1"     -> new BigPacket1(pc.colorId());
+                            case "BigPacket2"     -> new BigPacket2(pc.colorId());
+                            case "ProtectedPacket"-> new ProtectedPacket<>(new SquarePacket());
+                            case "SecretPacket1"  -> new SecretPacket1();
+                            case "SecretPacket2"  -> new SecretPacket2<>(new ProtectedPacket<>(new SquarePacket()));
+                            default -> throw new IllegalArgumentException("Unknown packet type: " + pc.type());
+                        };
+                        sys.addPacket(pkt);
+                        sm.addPacket(pkt);
+                        sm.addToFirstCountPacket();
+                    }
+                }
+            }
+
+            // ---------- NEW: build lines/bends from config ----------
+            if (cfg.lines() != null && !cfg.lines().isEmpty()) {
+                Map<Integer, System> byId = sm.getAllSystems()
+                        .stream().collect(Collectors.toMap(System::getId, s -> s));
+
+                for (LineConfig lc : cfg.lines()) {
+                    System sA = byId.get(lc.startSystemId());
+                    System sB = byId.get(lc.endSystemId());
+                    if (sA == null || sB == null) continue;
+
+                    List<OutputPort> outs = sA.getOutputPorts();
+                    List<InputPort>  ins  = sB.getInputPorts();
+                    if (lc.startOutputIndex() < 0 || lc.startOutputIndex() >= outs.size()) continue;
+                    if (lc.endInputIndex()    < 0 || lc.endInputIndex()    >= ins.size())  continue;
+
+                    OutputPort op = outs.get(lc.startOutputIndex());
+                    InputPort  ip = ins.get(lc.endInputIndex());
+                    if (op.getLine() != null || ip.getLine() != null) continue;
+
+                    Line wire = new Line(op, ip);
+                    op.setLine(wire);
+                    ip.setLine(wire);
+
+                    if (lc.bends() != null) {
+                        for (BendTriplet bt : lc.bends()) {
+                            wire.addBendPoint(
+                                    new Point(bt.start().x(),  bt.start().y()),
+                                    new Point(bt.middle().x(), bt.middle().y()),
+                                    new Point(bt.end().x(),    bt.end().y()));
+                        }
+                    }
+                    sm.addLine(wire); // updates used length
+                }
+                sm.recomputeUsedWireLength();
+            }
+        }
+        return sm;
     }
 }

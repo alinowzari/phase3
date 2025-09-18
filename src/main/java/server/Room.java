@@ -29,7 +29,6 @@ final class Room {
     private final Set<Long> seenSeqA = ConcurrentHashMap.newKeySet();
     private final Set<Long> seenSeqB = ConcurrentHashMap.newKeySet();
 
-
     Room(String id, Session a, Session b, String levelName, LevelSession level) {
         this.id = id; this.a = a; this.b = b; this.levelName = levelName; this.level = level;
     }
@@ -40,6 +39,8 @@ final class Room {
         readyA = false; readyB = false;
         tick = 0;
     }
+
+    /** Legacy path (kept in case you still call it elsewhere). Now side-aware. */
     private void drainInputs(Session s) {
         net.Wire.Envelope e;
         while ((e = s.inputs.poll()) != null) {
@@ -49,10 +50,12 @@ final class Room {
                 var cmdNode = (payload != null && payload.has("cmd")) ? payload.get("cmd") : payload;
 
                 ClientCommand cmd = net.Wire.read(cmdNode, ClientCommand.class);
-                System.out.println("[ROOM " + id + "] cmd=" + cmd.getClass().getSimpleName()
-                        + " from " + (s == a ? "A" : "B") + " phase=" + state);
+                final String side = (s == a) ? "A" : "B";
 
-                if (isLaunch(cmd) || cmd.getClass().getSimpleName().equals("ReadyCmd")) {
+                System.out.println("[ROOM " + id + "] cmd=" + cmd.getClass().getSimpleName()
+                        + " from " + side + " phase=" + state);
+
+                if (isLaunch(cmd) || cmd instanceof ReadyCmd) {
                     if (s == a) readyA = true; else if (s == b) readyB = true;
                     System.out.println("[ROOM " + id + "] ready flags A=" + readyA + " B=" + readyB);
                 }
@@ -63,7 +66,10 @@ final class Room {
                     continue;
                 }
 
-                level.enqueue(cmd);
+                // route to the correct layer
+                if (!(cmd instanceof ReadyCmd)) {
+                    level.enqueue(cmd, side);
+                }
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
@@ -100,7 +106,8 @@ final class Room {
             GameServer.onRoomActive(this);
         }
     }
-    // Room.java
+
+    /** Main drain used in tickOnce; now computes side and passes it to LevelSession.enqueue. */
     private void drainCommands(Session s) {
         if (s == null) return;
 
@@ -113,13 +120,13 @@ final class Room {
                 long seq = d.path("seq").asLong(-1);
                 var cmdNode = d.get("cmd"); if (cmdNode == null) continue;
 
-                // ↓↓↓ decode without leaving "type" in the JSON sent to Jackson
                 ClientCommand cmd = decodeCmd(cmdNode);
+                final String side = (s == a) ? "A" : "B";
 
                 if (cmd instanceof ReadyCmd) {
                     if (s == a) readyA = true; else if (s == b) readyB = true;
                 } else {
-                    level.enqueue(cmd);
+                    level.enqueue(cmd, side); // ← side-aware enqueue
                 }
 
                 NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, java.util.Map.of("seq", seq)));
@@ -128,7 +135,7 @@ final class Room {
             }
         }
     }
-    // Room.java
+
     private ClientCommand decodeCmd(com.fasterxml.jackson.databind.JsonNode cmdNode) {
         if (cmdNode == null || !cmdNode.isObject())
             throw new IllegalArgumentException("bad command json");
@@ -137,14 +144,12 @@ final class Room {
         String t = on.path("type").asText("").trim();
         on.remove("type"); // never let Jackson see it again
 
-        // common scalars
         long  seq = on.path("seq").asLong(-1);
         int   fs  = on.path("fromSystemId").asInt(-1);
         int   fo  = on.path("fromOutputIndex").asInt(-1);
         int   ts  = on.path("toSystemId").asInt(-1);
         int   ti  = on.path("toInputIndex").asInt(-1);
 
-        // tiny helper for points
         java.util.function.Function<com.fasterxml.jackson.databind.JsonNode, PointDTO> P =
                 j -> new PointDTO(j.path("x").asInt(), j.path("y").asInt());
 
@@ -187,7 +192,6 @@ final class Room {
             default -> throw new IllegalArgumentException("unknown cmd type: " + t);
         }
     }
-
 
     private static boolean isLaunch(ClientCommand cmd) {
         return cmd.getClass().getSimpleName().equals("LaunchCmd");
