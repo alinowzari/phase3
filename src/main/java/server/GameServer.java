@@ -1,6 +1,7 @@
 package server;
 
 import com.sun.net.httpserver.HttpServer;
+import common.NetSnapshotDTO;
 import common.RoomState;
 import common.util.Hex;
 import net.Wire;
@@ -119,8 +120,13 @@ public final class GameServer {
 
                 switch (env.t) {
                     case "PING"      -> NetIO.send(session, Wire.of("PONG", sid, env.data));
-
                     case "JOIN_QUEUE" -> {
+                        // If already matched, do not re-queue (prevents duplicate rooms).
+                        if (session.room != null && session.room.started) {
+                            NetIO.send(session, err("already_in_room", "Already in match " + session.room.id));
+                            break;
+                        }
+
                         String requested = (env.data != null) ? env.data.path("level").asText("") : "";
                         requested = (requested == null ? "" : requested.trim());
 
@@ -154,24 +160,16 @@ public final class GameServer {
                         if (r != null) {
                             metrics.matchesStarted.incrementAndGet();
 
-                            // capture finals for lambdas
-                            final String rid = r.id, lvl = r.levelName;
+                            final String rid  = r.id;
+                            final String lvl  = r.levelNameA;   // both sides play same level
                             final String tokA = r.a.token, tokB = r.b.token;
 
                             System.out.println(json("match_started",
                                     java.util.Map.of("roomId", rid, "level", lvl, "a", r.a.sid, "b", r.b.sid)));
                             storeSafe("matchStarted", () -> store.matchStarted(rid, lvl, tokA, tokB));
-                            r.a.room = r;
-                            r.b.room = r;
-                            long buildMs = 2_000L;
-                            r.beginBuildPhase(buildMs);
-                            NetIO.send(r.a, Wire.of("START", r.a.sid, Map.of(
-                                    "side","A","level", lvl, "state","BUILD", "buildMs", buildMs)));
-                            NetIO.send(r.b, Wire.of("START", r.b.sid, Map.of(
-                                    "side","B","level", lvl, "state","BUILD", "buildMs", buildMs)));
 
-                            System.out.println("[ROOM " + rid + "] START sent → A=" + r.a.sid + " B=" + r.b.sid
-                                    + " level=" + lvl);
+                            // DO NOT: r.beginBuildPhase(..)
+                            // DO NOT: send START here — Matchmaker already did this
 
                             NetIO.send(session, Wire.of("JOINED", session.sid,
                                     java.util.Map.of("queued", false, "level", session.levelName)));
@@ -197,6 +195,7 @@ public final class GameServer {
                                     + " seq=" + seq + " last=" + session.lastSeq);
                             break;
                         }
+                        //new code
                         if (!session.cmdRate.tryAcquire()) {
                             long nowMs = System.currentTimeMillis();
                             if (nowMs - session.lastRateWarnMs > 1000) {
@@ -206,6 +205,16 @@ public final class GameServer {
                             System.out.println("[CMD DROP] rate_limited sid=" + session.sid + " seq=" + seq);
                             break;
                         }
+                        Room r = session.room;
+                        if (r == null || (! (session == r.a || session == r.b))) {
+                            System.out.println("[CMD DROP] session not bound to room players sid=" + session.sid + " seq=" + seq);
+                            break;
+                        }
+
+// (optional) quick trace — super helpful while you test
+                        System.out.println("[CMD] sid=" + session.sid
+                                + " side=" + ((session == r.a) ? "A" : "B")
+                                + " seq=" + seq);
 
                         session.lastSeq = seq;
                         if (session.inputs.size() >= 512) session.inputs.poll();
@@ -256,6 +265,28 @@ public final class GameServer {
                         )));
 
                         // If in a room, re-send START & a fresh SNAPSHOT
+//                        Room r = session.room;
+//                        if (r != null && r.started) {
+//                            final String side = (r.a == session) ? "A" : "B";
+//                            final long buildMsLeft =
+//                                    (r.state == RoomState.BUILD)
+//                                            ? Math.max(0L, r.buildDeadlineMs - System.currentTimeMillis())
+//                                            : 0L;
+//
+//                            NetIO.send(session, Wire.of("START", session.sid, Map.of(
+//                                    "roomId", r.id,
+//                                    "side", side,
+//                                    "tick", r.tick,
+//                                    "level", r.levelNameA, // same for both sides
+//                                    "state", r.state.name(),
+//                                    "buildMs", buildMsLeft
+//                            )));
+//
+//                            var snap = side.equals("A")
+//                                    ? r.levelA.toSnapshot(r.id, r.state, "A")
+//                                    : r.levelB.toSnapshot(r.id, r.state, "B");
+//                            NetIO.send(session, Wire.of("SNAPSHOT", session.sid, snap));
+//                        }
                         Room r = session.room;
                         if (r != null && r.started) {
                             final String side = (r.a == session) ? "A" : "B";
@@ -264,17 +295,23 @@ public final class GameServer {
                                             ? Math.max(0L, r.buildDeadlineMs - System.currentTimeMillis())
                                             : 0L;
 
+                            session.room = r; // keep the back reference in sync
+
                             NetIO.send(session, Wire.of("START", session.sid, Map.of(
                                     "roomId", r.id,
                                     "side", side,
                                     "tick", r.tick,
-                                    "level", r.levelName,
+                                    "level", r.levelNameA,
                                     "state", r.state.name(),
                                     "buildMs", buildMsLeft
                             )));
-                            var snap = r.level.toSnapshot(r.id, r.state, side);
+
+                            // ✅ unified, side-aware composer (you already switched to this):
+                            NetSnapshotDTO snap = r.composeSnapshotFor(session);
                             NetIO.send(session, Wire.of("SNAPSHOT", session.sid, snap));
                         }
+
+
                     }
 
                     case "BYE" -> dropSession(session, "client_bye");

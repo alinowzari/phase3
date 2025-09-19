@@ -39,6 +39,9 @@ public class GamePanel extends JPanel {
     private final PacketRenderer  packets;
     private final PreviewOverlay  preview;
 
+
+    private java.util.List<java.util.Map<String,Object>> hudMy  = java.util.List.of();
+    private java.util.List<java.util.Map<String,Object>> hudOpp = java.util.List.of();
     public GamePanel() { this(null); }
 
     public GamePanel(SystemManager model) {
@@ -89,6 +92,47 @@ public class GamePanel extends JPanel {
     public PortPick pickInputAt(Point p) {
         var hit = Pickers.pickPortAt(snapshot, p, /*input=*/true);
         return (hit == null) ? null : new PortPick(hit.systemId(), hit.portIndex(), hit.x(), hit.y());
+    }
+    // GamePanel.java (add near other fields)
+
+    // GamePanel.java (add these methods)
+    public void setSnapshotReplace(common.StateDTO s) {
+        // your view already draws from a single StateDTO; replacing is enough
+        setSnapshot(s); // alias
+    }
+
+    /** Provide two HUD polylines collections: mine (solid) and opponent (ghosted). */
+    public void setHudLines(java.util.List<java.util.Map<String,Object>> my,
+                            java.util.List<java.util.Map<String,Object>> opp) {
+        this.hudMy  = (my  == null ? java.util.List.of() : my);
+        this.hudOpp = (opp == null ? java.util.List.of() : opp);
+
+        // also copy into uiData for renderers that pull from the map
+        java.util.Map<String,Object> m =
+                (this.uiData == null) ? new java.util.HashMap<>() : new java.util.HashMap<>(this.uiData);
+        m.put("hudLinesMy",  this.hudMy);
+        m.put("hudLinesOpp", this.hudOpp);
+        this.uiData = m;
+        repaint();
+    }
+
+    /** Push the pair we want to display into the HUD. */
+    public void setWireBudgets(java.lang.Integer usedMine, java.lang.Integer capMine,
+                               java.lang.Integer usedOpp,  java.lang.Integer capOpp) {
+        // HudOverlay reads "wireUsed"/"wireBudget" — set those for the *current* player
+        java.util.Map<String,Object> m =
+                (this.uiData == null) ? new java.util.HashMap<>() : new java.util.HashMap<>(this.uiData);
+        if (usedMine != null) m.put("wireUsed", usedMine);
+        if (capMine  != null) m.put("wireBudget", capMine);
+
+        // keep the full set too (handy if you add a dual HUD later)
+        if (usedMine != null) m.put("wireUsedMine", usedMine);
+        if (capMine  != null) m.put("wireBudgetMine", capMine);
+        if (usedOpp  != null) m.put("wireUsedOpp",  usedOpp);
+        if (capOpp   != null) m.put("wireBudgetOpp", capOpp);
+
+        this.uiData = m;
+        repaint();
     }
 
 

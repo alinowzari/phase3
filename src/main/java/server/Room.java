@@ -1,104 +1,85 @@
 package server;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import common.AbilityType;
+import common.MatchInfoDTO;
+import common.NetSnapshotDTO;
 import common.PointDTO;
-import common.cmd.*;
 import common.RoomState;
+import common.cmd.*;
 import common.cmd.marker.ActivePhaseCmd;
 import common.cmd.marker.AnyPhaseCmd;
 import common.cmd.marker.BuildPhaseCmd;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** One room, two independent levels (A,B). */
 final class Room {
-    final String id;
+    // identities / sockets
+    final String  id;
     final Session a, b;
-    final String levelName;
-    final LevelSession level;
-    volatile boolean activeLogged = false;
-    volatile boolean started = true;
-    volatile long tick = 0;
-    volatile RoomState state = RoomState.BUILD;
-    volatile long buildDeadlineMs;
-    volatile boolean readyA, readyB;
 
-    private static final ObjectMapper JSON = new ObjectMapper();
+    // level choice (per side)
+    final String        levelNameA, levelNameB;
+    final LevelSession  levelA, levelB;  // ← separate authoritative models
 
+    // lifecycle
+    volatile boolean     activeLogged = false;
+    volatile boolean     started      = true;
+    volatile long        tick         = 0;
+    volatile RoomState   state        = RoomState.BUILD;
+    volatile long        buildDeadlineMs;
+    volatile boolean     readyA, readyB;
+
+    // per-side command de-dup
     private final Set<Long> seenSeqA = ConcurrentHashMap.newKeySet();
     private final Set<Long> seenSeqB = ConcurrentHashMap.newKeySet();
+    volatile boolean launchedA = false, launchedB = false;
 
-    Room(String id, Session a, Session b, String levelName, LevelSession level) {
-        this.id = id; this.a = a; this.b = b; this.levelName = levelName; this.level = level;
+
+    Room(String id,
+         Session a, Session b,
+         String levelNameA, String levelNameB,
+         LevelSession lvlA, LevelSession lvlB) {
+        this.id = id;
+        this.a = a; this.b = b;
+        this.levelNameA = levelNameA; this.levelNameB = levelNameB;
+        this.levelA = lvlA; this.levelB = lvlB;
     }
 
     void beginBuildPhase(long durationMs) {
         state = RoomState.BUILD;
         buildDeadlineMs = System.currentTimeMillis() + durationMs;
         readyA = false; readyB = false;
+        launchedA = false; launchedB = false;  // ✨ NEW
         tick = 0;
     }
-
-    /** Legacy path (kept in case you still call it elsewhere). Now side-aware. */
-    private void drainInputs(Session s) {
-        net.Wire.Envelope e;
-        while ((e = s.inputs.poll()) != null) {
-            if (!"COMMAND".equals(e.t)) continue;
-            try {
-                var payload = e.data;
-                var cmdNode = (payload != null && payload.has("cmd")) ? payload.get("cmd") : payload;
-
-                ClientCommand cmd = net.Wire.read(cmdNode, ClientCommand.class);
-                final String side = (s == a) ? "A" : "B";
-
-                System.out.println("[ROOM " + id + "] cmd=" + cmd.getClass().getSimpleName()
-                        + " from " + side + " phase=" + state);
-
-                if (isLaunch(cmd) || cmd instanceof ReadyCmd) {
-                    if (s == a) readyA = true; else if (s == b) readyB = true;
-                    System.out.println("[ROOM " + id + "] ready flags A=" + readyA + " B=" + readyB);
-                }
-
-                if (!isAllowedInPhase(cmd, state)) {
-                    System.out.println("[ROOM " + id + "] DROP " + cmd.getClass().getSimpleName()
-                            + " in phase " + state);
-                    continue;
-                }
-
-                // route to the correct layer
-                if (!(cmd instanceof ReadyCmd)) {
-                    level.enqueue(cmd, side);
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        }
-    }
-
     void tickOnce() {
         tick++;
 
-        // 1) drain queued COMMAND envelopes -> typed commands -> LevelSession
-        drainCommands(a);
-        drainCommands(b);
+        // 1) drain incoming COMMANDs, routing per side
+        drainCommands(a, levelA, seenSeqA);
+        drainCommands(b, levelB, seenSeqB);
 
-        // 2) advance the authoritative simulation
-        level.step(33);
+        // 2) advance each authoritative simulation
+        levelA.step(33);
+        levelB.step(33);
 
-        // 3) broadcast snapshots
-        var snapA = level.toSnapshot(id, state, "A");
-        var snapB = level.toSnapshot(id, state, "B");
+        // 3) snapshots (per side)
+        var snapA = composeSnapshot(levelA, levelB, "A");
+        var snapB = composeSnapshot(levelB, levelA, "B");
         NetIO.send(a, net.Wire.of("SNAPSHOT", a.sid, snapA));
         NetIO.send(b, net.Wire.of("SNAPSHOT", b.sid, snapB));
 
-        // 4) room state machine (unchanged)
         if (state == RoomState.BUILD) {
             boolean timeUp = System.currentTimeMillis() >= buildDeadlineMs;
-            if (timeUp || (readyA && readyB)) {
+            // 🔒 TEMP: Require explicit launches from *both* sides; ignore timeUp while debugging
+            if (launchedA && launchedB) {
                 state = RoomState.ACTIVE;
-                System.out.println("[ROOM " + id + "] → ACTIVE (timeUp=" + timeUp
-                        + " readyA=" + readyA + " readyB=" + readyB + ")");
+                System.out.println("[ROOM " + id + "] → ACTIVE (both launched)");
             }
         }
         if (state == RoomState.ACTIVE && !activeLogged) {
@@ -106,43 +87,88 @@ final class Room {
             GameServer.onRoomActive(this);
         }
     }
+    /** Compose a snapshot for one side (“me”), including both HUD polylines and budgets. */
+    private NetSnapshotDTO composeSnapshot(LevelSession me, LevelSession opp, String sideTag) {
+        var info = new MatchInfoDTO(
+                id,
+                me.levelId(),
+                state,
+                tick,
+                me.timeLeftMs(),
+                me.score(),         // my score
+                opp.score(),        // opponent score (optional to display)
+                sideTag
+        );
 
-    /** Main drain used in tickOnce; now computes side and passes it to LevelSession.enqueue. */
-    private void drainCommands(Session s) {
+        var stateDto = mapper.Mapper.toState(me.sm);
+
+        Map<String, Object> ui = new HashMap<>();
+        ui.put("wireUsedA",    me.sm.getWireUsedPx());
+        ui.put("wireBudgetA", (int) me.sm.getWireBudgetPx());
+        ui.put("wireUsedB",    opp.sm.getWireUsedPx());
+        ui.put("wireBudgetB", (int) opp.sm.getWireBudgetPx());
+        ui.put("hudLinesA",    me.hudLinesForUi());
+        ui.put("hudLinesB",    opp.hudLinesForUi());
+
+        return new NetSnapshotDTO(info, stateDto, ui);
+    }
+    // Room.java  (inside drainCommands)
+    private void drainCommands(Session s, LevelSession target, Set<Long> seenSet) {
         if (s == null) return;
 
         net.Wire.Envelope env;
         while ((env = s.inputs.poll()) != null) {
             try {
                 if (!"COMMAND".equals(env.t)) continue;
-                var d = env.data; if (d == null) continue;
+                JsonNode d = env.data; if (d == null) continue;
 
                 long seq = d.path("seq").asLong(-1);
-                var cmdNode = d.get("cmd"); if (cmdNode == null) continue;
-
-                ClientCommand cmd = decodeCmd(cmdNode);
-                final String side = (s == a) ? "A" : "B";
-
-                if (cmd instanceof ReadyCmd) {
-                    if (s == a) readyA = true; else if (s == b) readyB = true;
-                } else {
-                    level.enqueue(cmd, side); // ← side-aware enqueue
+                if (seq >= 0 && !seenSet.add(seq)) {
+                    NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, Map.of("seq", seq, "dup", true)));
+                    continue;
                 }
 
-                NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, java.util.Map.of("seq", seq)));
+                JsonNode cmdNode = d.get("cmd"); if (cmdNode == null) continue;
+                ClientCommand cmd = decodeCmd(cmdNode);
+
+                // 🔎 TRACE what we received and current room state
+                System.out.println("[ROOM " + id + "] cmd from " + (s == a ? "A" : "B")
+                        + " type=" + cmd.getClass().getSimpleName()
+                        + " state=" + state);
+
+                if (!isAllowedInPhase(cmd, state)) {
+                    System.out.println("[ROOM " + id + "] DROP " + cmd.getClass().getSimpleName()
+                            + " in phase " + state);
+                    // still ACK so client journal compacts
+                    NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, Map.of("seq", seq)));
+                    continue;
+                }
+
+                if (cmd instanceof LaunchCmd) {
+                    if (s == a) launchedA = true; else if (s == b) launchedB = true;
+                    System.out.println("[ROOM " + id + "] Launch by " + (s==a?"A":"B")
+                            + " launchedA=" + launchedA + " launchedB=" + launchedB);
+                } else if (cmd instanceof ReadyCmd) {
+                    if (s == a) readyA = true; else if (s == b) readyB = true;
+                } else {
+                    target.enqueue(cmd);
+                }
+
+                NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, Map.of("seq", seq)));
             } catch (Exception ex) {
                 System.err.println("[Room " + id + "] bad command: " + ex);
             }
         }
     }
 
-    private ClientCommand decodeCmd(com.fasterxml.jackson.databind.JsonNode cmdNode) {
+    /** Parse a compact command node (we strip “type” before mapping to records). */
+    private ClientCommand decodeCmd(JsonNode cmdNode) {
         if (cmdNode == null || !cmdNode.isObject())
             throw new IllegalArgumentException("bad command json");
 
         var on = (com.fasterxml.jackson.databind.node.ObjectNode) cmdNode;
         String t = on.path("type").asText("").trim();
-        on.remove("type"); // never let Jackson see it again
+        on.remove("type"); // keep Jackson from double-decoding
 
         long  seq = on.path("seq").asLong(-1);
         int   fs  = on.path("fromSystemId").asInt(-1);
@@ -150,56 +176,59 @@ final class Room {
         int   ts  = on.path("toSystemId").asInt(-1);
         int   ti  = on.path("toInputIndex").asInt(-1);
 
-        java.util.function.Function<com.fasterxml.jackson.databind.JsonNode, PointDTO> P =
+        java.util.function.Function<JsonNode, PointDTO> P =
                 j -> new PointDTO(j.path("x").asInt(), j.path("y").asInt());
 
-        switch (t) {
-            case "AddLineCmd", "addLine" -> {
-                return new AddLineCmd(seq, fs, fo, ts, ti);
-            }
-            case "RemoveLineCmd", "removeLine" -> {
-                return new RemoveLineCmd(seq, fs, fo, ts, ti);
-            }
-            case "MoveSystemCmd", "moveSystem" -> {
+        return switch (t) {
+            case "AddLineCmd",   "addLine"    -> new AddLineCmd(seq, fs, fo, ts, ti);
+            case "RemoveLineCmd","removeLine" -> new RemoveLineCmd(seq, fs, fo, ts, ti);
+            case "MoveSystemCmd","moveSystem" -> {
                 int sysId = on.path("systemId").asInt();
                 int x     = on.path("x").asInt();
                 int y     = on.path("y").asInt();
-                return new MoveSystemCmd(seq, sysId, x, y);
+                yield new MoveSystemCmd(seq, sysId, x, y);
             }
-            case "AddBendCmd", "addBend" -> {
+            case "AddBendCmd",   "addBend"    -> {
                 var footA  = P.apply(on.path("footA"));
                 var middle = P.apply(on.path("middle"));
                 var footB  = P.apply(on.path("footB"));
-                return new AddBendCmd(seq, fs, fo, ts, ti, footA, middle, footB);
+                yield new AddBendCmd(seq, fs, fo, ts, ti, footA, middle, footB);
             }
-            case "MoveBendCmd", "moveBend" -> {
+            case "MoveBendCmd",  "moveBend"   -> {
                 int bendIndex = on.path("bendIndex").asInt();
                 var newMid    = P.apply(on.path("newMiddle"));
-                return new MoveBendCmd(seq, fs, fo, ts, ti, bendIndex, newMid);
+                yield new MoveBendCmd(seq, fs, fo, ts, ti, bendIndex, newMid);
             }
-            case "UseAbilityCmd", "useAbility" -> {
+            case "UseAbilityCmd","useAbility" -> {
                 String aStr = on.path("ability").asText();
                 var ability = AbilityType.valueOf(aStr);
                 var at      = P.apply(on.path("at"));
-                return new UseAbilityCmd(seq, ability, fs, fo, ts, ti, at);
+                yield new UseAbilityCmd(seq, ability, fs, fo, ts, ti, at);
             }
-            case "ReadyCmd", "ready" -> {
-                return new ReadyCmd(seq);
-            }
-            case "LaunchCmd", "launch" -> {
-                return new LaunchCmd(seq);
-            }
+            case "ReadyCmd",     "ready"      -> new ReadyCmd(seq);
+            case "LaunchCmd",    "launch"     -> new LaunchCmd(seq);
             default -> throw new IllegalArgumentException("unknown cmd type: " + t);
-        }
+        };
     }
 
-    private static boolean isLaunch(ClientCommand cmd) {
-        return cmd.getClass().getSimpleName().equals("LaunchCmd");
-    }
     private static boolean isAllowedInPhase(ClientCommand cmd, RoomState st) {
         if (cmd instanceof AnyPhaseCmd) return true;
         if (st == RoomState.BUILD)  return (cmd instanceof BuildPhaseCmd);
         if (st == RoomState.ACTIVE) return (cmd instanceof ActivePhaseCmd);
         return false;
+    }
+    public boolean isSessionA(Session s) {
+        return s != null && a != null && java.util.Objects.equals(s.sid, a.sid);
+    }
+    public boolean isSessionB(Session s) {
+        return s != null && b != null && java.util.Objects.equals(s.sid, b.sid);
+    }
+
+    /** Always build the correct per-side snapshot for the recipient session. */
+    public NetSnapshotDTO composeSnapshotFor(Session who) {
+        if (isSessionA(who)) return composeSnapshot(levelA, levelB, "A");
+        if (isSessionB(who)) return composeSnapshot(levelB, levelA, "B");
+        // Fallback if called for a non-player (spectator etc.)
+        return composeSnapshot(levelA, levelB, "A");
     }
 }

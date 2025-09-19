@@ -1,57 +1,6 @@
-//// server/Matchmaker.java
-//package server;
-//
-//import java.util.Objects;
-//import java.util.Queue;
-//import java.util.UUID;
-//
-//final class Matchmaker {
-//    private final Queue<Session> q;
-//    private final model.LevelsManager levels;
-//
-//    Matchmaker(Queue<Session> matchmaking, model.LevelsManager levels) {
-//        this.q = matchmaking; this.levels = levels;
-//    }
-//
-//    /** Find two compatible players (same levelName), remove both, build Room. */
-//    public synchronized Room tryMatch() {
-//        // Peek one candidate; don't remove yet
-//        Session first = q.peek();
-//        if (first == null) return null;
-//
-//        // Find a second with same level
-//        Session second = null;
-//        for (Session s : q) {
-//            if (s != first && Objects.equals(s.levelName, first.levelName)) {
-//                second = s; break;
-//            }
-//        }
-//        if (second == null) return null;
-//
-//        // Remove both (order-agnostic)
-//        q.remove(first);
-//        q.remove(second);
-//
-//        // Build the level session
-//        var lm = levels.getLevelManager(first.levelName);
-//        if (lm == null) return null; // should not happen after JOIN_QUEUE check
-//        LevelSession lvl = lm.newSession();
-//
-//        // Create room
-//        Room r = new Room(UUID.randomUUID().toString(), first, second, first.levelName, lvl);
-//        r.started = true;
-//
-//        // Bind back-refs so COMMANDs are accepted immediately
-//        first.room  = r;
-//        second.room = r;
-//
-//        return r;
-//    }
-//}
 package server;
 
 import model.LevelsManager;
-import model.System;
 import model.SystemManager;
 
 import java.util.Iterator;
@@ -73,40 +22,55 @@ final class Matchmaker {
         Session a = queue.poll();
         if (a == null) return null;
 
-        // Prefer same-level opponent
-        for (Iterator<Session> it = queue.iterator(); it.hasNext();) {
-            Session b = it.next();
-            if (Objects.equals(b.levelName, a.levelName)) {
-                it.remove();
-                return startRoom(a, b, a.levelName);
+        // Find same-level opponent only
+        Session b = null;
+        for (var it = queue.iterator(); it.hasNext();) {
+            Session s = it.next();
+            if (java.util.Objects.equals(s.levelName, a.levelName)) {
+                b = s; it.remove(); break;
             }
         }
-        // none yet → put A back and wait
-        queue.add(a);
-        return null;
+        // No same-level opponent yet → requeue A and wait
+        if (b == null) { queue.add(a); return null; }
+
+        return startRoomSameLevel(a, b);
     }
 
-    private Room startRoom(Session a, Session b, String levelName) {
-        SystemManager smA = levels.getSystemManagerByName(null, levelName); // or rebuild from config
-        SystemManager smB = levels.getSystemManagerByName(null, levelName);
-        boolean sameRef = (smA == smB);
-        java.lang.System.out.println("[LEVELS] smA == smB? " + sameRef
+
+    /** Start a room where BOTH sides play the SAME level (independent instances). */
+    private Room startRoomSameLevel(Session a, Session b) {
+        // Choose the common level: A's preference wins if different.
+        final String commonLevel = (a.levelName == null) ? "" : a.levelName;
+
+        // Build two brand-new SystemManagers from the SAME level config (no sharing).
+        SystemManager smA = levels.getSystemManagerByName(null, commonLevel);
+        SystemManager smB = levels.getSystemManagerByName(null, commonLevel);
+
+        // Sanity: these must be different objects
+        java.lang.System.out.println("[MATCH] commonLevel=" + commonLevel
                 + "  smA@" + java.lang.System.identityHashCode(smA)
-                + "  smB@" + java.lang.System.identityHashCode(smB));
-        LevelSession level = new LevelSession(levelName, smA, smB, 180_000L);
+                + "  smB@" + java.lang.System.identityHashCode(smB)
+                + "  sameRef? " + (smA == smB));
+
+        long durationMs = 180_000L; // tweak if needed
+        LevelSession levelA = new LevelSession(commonLevel, smA, durationMs);
+        LevelSession levelB = new LevelSession(commonLevel, smB, durationMs);
 
         String roomId = UUID.randomUUID().toString();
-        Room r = new Room(roomId, a, b, levelName, level);
-        a.room = r; b.room = r;
-        r.beginBuildPhase(30_000L);
+        Room r = new Room(roomId, a, b, commonLevel, commonLevel, levelA, levelB);
 
+        // Bind and start BUILD phase
+        a.room = r; b.room = r;
+        r.beginBuildPhase(180_000L);
+
+        // START messages — both sides get the SAME level name
         NetIO.send(a, net.Wire.of("START", a.sid, java.util.Map.of(
-                "roomId", roomId, "side", "A", "tick", r.tick, "level", levelName,
-                "state", "BUILD", "buildMs", 30_000L
+                "roomId", roomId, "side", "A", "tick", r.tick,
+                "level",  commonLevel, "state", "BUILD", "buildMs", 180_000L
         )));
         NetIO.send(b, net.Wire.of("START", b.sid, java.util.Map.of(
-                "roomId", roomId, "side", "B", "tick", r.tick, "level", levelName,
-                "state", "BUILD", "buildMs", 30_000L
+                "roomId", roomId, "side", "B", "tick", r.tick,
+                "level",  commonLevel, "state", "BUILD", "buildMs", 180_000L
         )));
         return r;
     }

@@ -27,6 +27,8 @@ public final class GameClient implements Closeable, MessageDispatcher.Runtime {
     private client.storage.Journal journal;
     private Path journalDir = java.nio.file.Paths.get(System.getProperty("user.home"), ".phase3", "journal");
 
+    //snapshot ordering
+    private volatile long lastTick = -1;
     // ---- pluggable subsystems ----
     private final ClientTransport transport;
     private final MessageDispatcher dispatcher = new MessageDispatcher();
@@ -41,6 +43,7 @@ public final class GameClient implements Closeable, MessageDispatcher.Runtime {
     private volatile String desiredLevel = "";
     private volatile String resumeToken = null;
     private volatile boolean wantResume = false;
+    public volatile boolean inMatch = false;
 
     // ---- callbacks ----
     private volatile Consumer<NetSnapshotDTO> onSnapshot = snap -> {};
@@ -94,9 +97,12 @@ public final class GameClient implements Closeable, MessageDispatcher.Runtime {
         this.desiredLevel = (levelName == null) ? "" : levelName.trim();
         if (sid != null) joinQueueLevel(this.desiredLevel);
     }
-
     @Override
     public void joinQueueLevel(String level) {
+        if (inMatch) {                       // NEW: prevent requeue during a match
+            onLog.accept("[JOIN_QUEUE] ignored: already in a match");
+            return;
+        }
         String lvl = (level == null || level.isBlank()) ? desiredLevel : level.trim();
         if (sid != null) {
             sendEnvelope(net.Wire.of("JOIN_QUEUE", sid, java.util.Map.of("level", lvl)));
@@ -142,7 +148,7 @@ public final class GameClient implements Closeable, MessageDispatcher.Runtime {
     @Override public void log(String s) { onLog.accept(s); }
     @Override public void error(String s) { onError.accept(s); }
     @Override public void opponentLeft(String msg) { onOpponentLeft.accept(msg); }
-
+    @Override public void resetSnapshotOrdering() { lastTick = -1; }
     @Override public void setSid(String sid) { this.sid = sid; }
     @Override public String sid() { return sid; }
     @Override public void setPhase(String phase) { this.phase = phase; }
@@ -167,15 +173,35 @@ public final class GameClient implements Closeable, MessageDispatcher.Runtime {
         hb.start(() -> sendEnvelope(Wire.of("PING", sid, Map.of("ts", System.currentTimeMillis()))));
     }
 
+    @Override
+    public void onSnapshot(NetSnapshotDTO dto) {
+        if (dto == null || dto.info() == null) return;
 
-    @Override public void onSnapshot(NetSnapshotDTO dto) {
+        // Allow snapshots until we know our side; afterwards, enforce side match.
+        String snapSide = dto.info().side();
+        if (mySide != null && !"?".equals(mySide) && snapSide != null
+                && !snapSide.equalsIgnoreCase(mySide)) {
+            onLog.accept("[SNAPSHOT] wrong side: snap=" + snapSide + " mine=" + mySide);
+            return;
+        }
+
+        long t = dto.info().tick();
+        if (t >= 0 && t <= lastTick) {
+            onLog.accept("[SNAPSHOT] drop stale/dup tick=" + t + " last=" + lastTick);
+            return;
+        }
+        lastTick = t;
+
         this.phase = dto.info().state().name();
         onSnapshot.accept(dto);
         if ("BUILD".equalsIgnoreCase(phase)) replayBacklogAsync();
     }
 
+
     @Override public void onStart(String side) {
+        this.inMatch=true;
         this.onStart.accept(side);
+        this.lastTick = -1;
         if ("BUILD".equalsIgnoreCase(phase)) replayBacklogAsync();
     }
 
@@ -233,4 +259,5 @@ public final class GameClient implements Closeable, MessageDispatcher.Runtime {
     public String  getSid()  { return sid; }
     public String  getSide() { return mySide; }
     public boolean isOpen()  { return transport.isOpen(); }
+    public String phase() { return phase; }
 }

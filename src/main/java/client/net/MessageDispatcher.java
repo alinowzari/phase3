@@ -16,7 +16,7 @@ public final class MessageDispatcher {
         void log(String s);
         void error(String s);
         void opponentLeft(String msg);
-
+        void resetSnapshotOrdering();
         // session & keys
         void setSid(String sid);
         String sid();
@@ -76,6 +76,8 @@ public final class MessageDispatcher {
                 } else {
                     rt.saveResumeToken(tokenStr);
                     rt.resetBaseline();
+                    //new
+                    rt.resetSnapshotOrdering();
                     rt.startHeartbeat();
                     rt.joinQueueLevel(null); // runtime substitutes desired level
                 }
@@ -91,9 +93,19 @@ public final class MessageDispatcher {
             }
             case "SNAPSHOT" -> {
                 NetSnapshotDTO dto = Wire.read(env.data, NetSnapshotDTO.class);
-                rt.setPhase(dto.info().state().name());
+                // NEW: adopt side if not already set
+                try {
+                    if (dto != null && dto.info() != null) {
+                        String s = dto.info().side();
+                        if (s != null && !s.isBlank()) {
+                            rt.setMySide(s);  // ensures client.getSide() is "A"/"B" before UI adapts
+                        }
+                        rt.setPhase(dto.info().state().name());
+                    }
+                } catch (Exception ignore) {}
                 rt.onSnapshot(dto);
             }
+
             case "CMD_ACK" -> {
                 long seqAck   = env.data != null ? env.data.path("seq").asLong(-1) : -1;
                 boolean dup   = env.data != null && env.data.path("dup").asBoolean(false);
@@ -112,14 +124,20 @@ public final class MessageDispatcher {
                 rt.setSid(boundSid);
                 rt.saveResumeToken(tokenStr.isBlank() ? rt.resumeToken() : tokenStr);
                 rt.adoptChain(serverLastSeq, lastMac);
+                //new
+                rt.resetSnapshotOrdering();
                 rt.startHeartbeat();
                 rt.log("[RESUMED] boundSid=" + boundSid + " lastSeq=" + serverLastSeq);
             }
             case "ERROR" -> {
                 String code = env.data != null ? env.data.path("code").asText("") : "";
                 String msg  = env.data != null ? env.data.path("msg").asText("unknown") : "unknown";
-                if ("opponent_left".equals(code)) rt.opponentLeft(msg);
-                else rt.error(env.data != null ? env.data.toString() : "unknown");
+                if ("opponent_left".equals(code) || "disconnect".equals(code)) {
+                    try { ((client.GameClient)rt).inMatch = false; } catch (Throwable ignore) {}
+                    rt.opponentLeft(msg);
+                } else {
+                    rt.error(env.data != null ? env.data.toString() : "unknown");
+                }
             }
             default -> rt.log("[MSG " + env.t + "] " + env.data);
         }

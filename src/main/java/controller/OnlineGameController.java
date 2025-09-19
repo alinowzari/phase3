@@ -46,18 +46,37 @@ public final class OnlineGameController {
         var actions = new OnlineBuildActions(sender);
         new ConnectionController(/* online = */ true, /* actions */ actions, /* model */ clientViewModel, /* canvas */ panel);
 
-        // 4) OUTPUT: Server -> UI (authoritative snapshots)
+
         this.client.setSnapshotHandler(snap ->
                 SwingUtilities.invokeLater(() -> {
+                    // Always push the new state tree
+                    panel.setSnapshotReplace(snap.state());
+
                     var ui = snap.ui();
                     if (ui != null) {
-                        Integer used = (ui.get("wireUsed")   instanceof Number) ? ((Number) ui.get("wireUsed")).intValue()   : null;
-                        Integer cap  = (ui.get("wireBudget") instanceof Number) ? ((Number) ui.get("wireBudget")).intValue() : null;
-                        panel.setWireHud(used, cap);
+                        final String my = this.client.getSide();                 // "A" or "B"
+                        final String opp = "A".equalsIgnoreCase(my) ? "B" : "A";
+
+                        // Wire budgets (mine & opponent)
+                        Integer usedMine = asInt(ui.get("wireUsed"   + my));
+                        Integer capMine  = asInt(ui.get("wireBudget" + my));
+                        Integer usedOpp  = asInt(ui.get("wireUsed"   + opp));
+                        Integer capOpp   = asInt(ui.get("wireBudget" + opp));
+                        panel.setWireBudgets(usedMine, capMine, usedOpp, capOpp);
+
+                        // HUD polylines (mine & opponent)
+                        @SuppressWarnings("unchecked")
+                        java.util.List<java.util.Map<String,Object>> myLines =
+                                (java.util.List<java.util.Map<String,Object>>) ui.get("hudLines" + my);
+                        @SuppressWarnings("unchecked")
+                        java.util.List<java.util.Map<String,Object>> oppLines =
+                                (java.util.List<java.util.Map<String,Object>>) ui.get("hudLines" + opp);
+                        panel.setHudLines(myLines, oppLines);
                     }
-                    panel.setSnapshot(snap.state());
                 })
         );
+
+
 
         // 5) (Optional) also enable Launch if a later START arrives (e.g., resume)
         this.client.setStartHandler(side ->
@@ -69,7 +88,6 @@ public final class OnlineGameController {
         try {
             this.client.connect();
             // Optional “Ready” signal (remove if you don’t use it server-side)
-            this.client.send(new ReadyCmd(client.nextSeq()));
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(panel, "Connect failed: " + ex.getMessage(),
                     "Network Error", JOptionPane.ERROR_MESSAGE);
@@ -78,5 +96,8 @@ public final class OnlineGameController {
 
     public void stop() {
         // No local sim to stop here.
+    }
+    private static Integer asInt(Object o) {
+        return (o instanceof Number) ? ((Number)o).intValue() : null;
     }
 }

@@ -389,6 +389,7 @@ public class ConnectionController extends MouseInputAdapter {
     public void mouseReleased(MouseEvent e) {
 
         // ----- Finish wire creation (unified) -----
+// ----- Finish wire creation (unified) -----
         if (wireStartCenter != null) {
             var to = pickInput(e.getPoint());
             if (startPick != null && to != null) {
@@ -396,11 +397,22 @@ public class ConnectionController extends MouseInputAdapter {
                         startPick.systemId(), startPick.portIndex(),
                         to.systemId(),       to.portIndex()
                 );
+                // 🔎 Add explicit client-side tracing so we know what happened
+                System.out.println("[CLIENT] AddLine -> from("
+                        + startPick.systemId() + "," + startPick.portIndex() + ") to("
+                        + to.systemId() + "," + to.portIndex() + ") result=" + r);
+
                 if (!online && r != BuildActions.OpResult.OK) {
                     showWarn("Cannot create wire (" + r + ").\nAvailable: "
-                            + (int)(model.getWireBudgetPx() - model.getWireUsedPx()) + " px");
+                            + (int) (model.getWireBudgetPx() - model.getWireUsedPx()) + " px");
                 }
+            } else {
+                // 🔎 If the pick failed, say it loudly so we can adjust hit-testing
+                System.out.println("[CLIENT] AddLine aborted: "
+                        + (startPick == null ? "no OUTPUT selected" : "no INPUT under cursor on release")
+                        + "  mouse=(" + e.getX() + "," + e.getY() + ")");
             }
+
             canvas.hidePreview();
             startPick = null;
             wireStartCenter = null;

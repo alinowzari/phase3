@@ -68,7 +68,7 @@ public class SystemManager {
         this.ctx = new SimulationContext(seed);
         this.gameStatus = gameStatus;
         this.levelName  = levelName;
-        this.maxLineLength = (gameStatus != null) ? gameStatus.getWireLength(levelName) : 2000;
+        this.maxLineLength = (gameStatus != null) ? gameStatus.getWireLength(levelName) : 3000;
         this.winCommitted  = (gameStatus != null) && gameStatus.isLevelPassed(levelName);
     }
 
