@@ -77,9 +77,9 @@ final class Room {
         if (state == RoomState.BUILD) {
             boolean timeUp = System.currentTimeMillis() >= buildDeadlineMs;
             // 🔒 TEMP: Require explicit launches from *both* sides; ignore timeUp while debugging
-            if (launchedA && launchedB) {
+            if (launchedA || launchedB) {
                 state = RoomState.ACTIVE;
-                System.out.println("[ROOM " + id + "] → ACTIVE (both launched)");
+                System.out.println("[ROOM " + id + "] → ACTIVE (someone launched)");
             }
         }
         if (state == RoomState.ACTIVE && !activeLogged) {
@@ -95,23 +95,30 @@ final class Room {
                 state,
                 tick,
                 me.timeLeftMs(),
-                me.score(),         // my score
-                opp.score(),        // opponent score (optional to display)
+                me.score(),           // my score (ok to vary per-recipient)
+                opp.score(),          // opponent score
                 sideTag
         );
 
+        // State tree must still be "me"
         var stateDto = mapper.Mapper.toState(me.sm);
 
         Map<String, Object> ui = new HashMap<>();
-        ui.put("wireUsedA",    me.sm.getWireUsedPx());
-        ui.put("wireBudgetA", (int) me.sm.getWireBudgetPx());
-        ui.put("wireUsedB",    opp.sm.getWireUsedPx());
-        ui.put("wireBudgetB", (int) opp.sm.getWireBudgetPx());
-        ui.put("hudLinesA",    me.hudLinesForUi());
-        ui.put("hudLinesB",    opp.hudLinesForUi());
+        ui.put("side", sideTag);
+
+        // 🔴 Always label by actual side, not by 'me/opp'
+        ui.put("wireUsedA",    levelA.sm.getWireUsedPx());
+        ui.put("wireBudgetA", (int) levelA.sm.getWireBudgetPx());
+        ui.put("wireUsedB",    levelB.sm.getWireUsedPx());
+        ui.put("wireBudgetB", (int) levelB.sm.getWireBudgetPx());
+
+        // Same for HUD lines
+        ui.put("hudLinesA", levelA.hudLinesForUi());
+        ui.put("hudLinesB", levelB.hudLinesForUi());
 
         return new NetSnapshotDTO(info, stateDto, ui);
     }
+
     // Room.java  (inside drainCommands)
     private void drainCommands(Session s, LevelSession target, Set<Long> seenSet) {
         if (s == null) return;
@@ -138,14 +145,18 @@ final class Room {
 
                 if (!isAllowedInPhase(cmd, state)) {
                     System.out.println("[ROOM " + id + "] DROP " + cmd.getClass().getSimpleName()
-                            + " in phase " + state);
-                    // still ACK so client journal compacts
-                    NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, Map.of("seq", seq)));
+                            + " in phase " + state + " (seq=" + seq + ")");
+                    NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, Map.of("seq", seq, "dropped", true, "why", "phase")));
                     continue;
                 }
 
                 if (cmd instanceof LaunchCmd) {
-                    if (s == a) launchedA = true; else if (s == b) launchedB = true;
+                    if (s == a){
+                        launchedA = true;
+                    }
+                    else if (s == b){
+                        launchedB = true;
+                    }
                     System.out.println("[ROOM " + id + "] Launch by " + (s==a?"A":"B")
                             + " launchedA=" + launchedA + " launchedB=" + launchedB);
                 } else if (cmd instanceof ReadyCmd) {
@@ -217,18 +228,10 @@ final class Room {
         if (st == RoomState.ACTIVE) return (cmd instanceof ActivePhaseCmd);
         return false;
     }
-    public boolean isSessionA(Session s) {
-        return s != null && a != null && java.util.Objects.equals(s.sid, a.sid);
-    }
-    public boolean isSessionB(Session s) {
-        return s != null && b != null && java.util.Objects.equals(s.sid, b.sid);
-    }
-
-    /** Always build the correct per-side snapshot for the recipient session. */
     public NetSnapshotDTO composeSnapshotFor(Session who) {
-        if (isSessionA(who)) return composeSnapshot(levelA, levelB, "A");
-        if (isSessionB(who)) return composeSnapshot(levelB, levelA, "B");
-        // Fallback if called for a non-player (spectator etc.)
-        return composeSnapshot(levelA, levelB, "A");
+        if (who == a) return composeSnapshot(levelA, levelB, "A");
+        if (who == b) return composeSnapshot(levelB, levelA, "B");
+        // Not one of our players – minimal neutral snapshot (optional)
+        return composeSnapshot(levelA, levelB, "A"); // safe default or throw
     }
 }
