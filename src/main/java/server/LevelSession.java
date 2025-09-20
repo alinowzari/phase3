@@ -39,7 +39,7 @@ public final class LevelSession {
     // (optional) “controllable systems” if you want per-system cooldowns
     private final List<Integer> controllable = new ArrayList<>();
     private final Arsenal arsenal = new Arsenal(3, 3, 3);
-
+    private volatile boolean launched = false;
     // Timed effects (local to this side)
     private final List<Effect> effects = new ArrayList<>();
 
@@ -90,7 +90,11 @@ public final class LevelSession {
                     case MoveSystemCmd m -> moveSystem(m);
                     case UseAbilityCmd u -> useAbility(u);
                     case ReadyCmd rdy    -> { /* room handles phase; no-op here */ }
-                    case LaunchCmd l     -> sm.launchPackets();
+                    case LaunchCmd l     -> {
+                        sm.launchPackets();
+                        launched = true;
+                        java.lang.System.out.println("is it launched "+launched);
+                    }
                     default -> { /* ignore unknown */ }
                 }
             } catch (Exception ex) {
@@ -223,7 +227,12 @@ public final class LevelSession {
         }
 
         int delta = incidentAfter - incidentBefore;
-        if (delta > 0 && !sm.canAffordDelta(delta)) return; // reject – would exceed wire budget
+        if (delta > 0 && !sm.canAffordDelta(delta)) {
+            java.lang.System.out.println("[LevelSession] moveSystem REJECT id=" + m.systemId()
+                    + " delta="+delta+" used="+sm.getWireUsedPx()+" budget="+(int)sm.getWireBudgetPx());
+            return;
+        }
+
 
         // accept move
         sys.setLocation(new Point(m.x(), m.y()));
@@ -465,4 +474,6 @@ public final class LevelSession {
     public long   tick()       { return tick; }
     public long   timeLeftMs() { return timeLeftMs; }
     public int    score()      { return score; }
+    public boolean isLaunched() { return launched; }
+    public boolean canLaunch()  { return !launched; }
 }

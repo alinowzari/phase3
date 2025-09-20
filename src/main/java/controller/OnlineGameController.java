@@ -47,31 +47,64 @@ public final class OnlineGameController {
         new ConnectionController(/* online = */ true, /* actions */ actions, /* model */ clientViewModel, /* canvas */ panel);
 
 
+//        this.client.setSnapshotHandler(snap ->
+//                SwingUtilities.invokeLater(() -> {
+//                    // Always push the new state tree
+//                    panel.setSnapshotReplace(snap.state());
+//
+//                    var ui = snap.ui();
+//                    if (ui != null) {
+//                        final String my = this.client.getSide();                 // "A" or "B"
+//                        final String opp = "A".equalsIgnoreCase(my) ? "B" : "A";
+//
+//                        // Wire budgets (mine & opponent)
+//                        Integer usedMine = asInt(ui.get("wireUsed"   + my));
+//                        Integer capMine  = asInt(ui.get("wireBudget" + my));
+//                        Integer usedOpp  = asInt(ui.get("wireUsed"   + opp));
+//                        Integer capOpp   = asInt(ui.get("wireBudget" + opp));
+//                        panel.setWireBudgets(usedMine, capMine, usedOpp, capOpp);
+//
+//                        // HUD polylines (mine & opponent)
+//                        @SuppressWarnings("unchecked")
+//                        java.util.List<java.util.Map<String,Object>> myLines =
+//                                (java.util.List<java.util.Map<String,Object>>) ui.get("hudLines" + my);
+//                        @SuppressWarnings("unchecked")
+//                        java.util.List<java.util.Map<String,Object>> oppLines =
+//                                (java.util.List<java.util.Map<String,Object>>) ui.get("hudLines" + opp);
+//                        panel.setHudLines(myLines, oppLines);
+//                    }
+//                })
+//        );
         this.client.setSnapshotHandler(snap ->
                 SwingUtilities.invokeLater(() -> {
-                    // Always push the new state tree
                     panel.setSnapshotReplace(snap.state());
-
                     var ui = snap.ui();
                     if (ui != null) {
-                        final String my = this.client.getSide();                 // "A" or "B"
+                        final String my  = this.client.getSide();
                         final String opp = "A".equalsIgnoreCase(my) ? "B" : "A";
 
-                        // Wire budgets (mine & opponent)
+                        // budgets (unchanged)
                         Integer usedMine = asInt(ui.get("wireUsed"   + my));
                         Integer capMine  = asInt(ui.get("wireBudget" + my));
                         Integer usedOpp  = asInt(ui.get("wireUsed"   + opp));
                         Integer capOpp   = asInt(ui.get("wireBudget" + opp));
                         panel.setWireBudgets(usedMine, capMine, usedOpp, capOpp);
 
-                        // HUD polylines (mine & opponent)
-                        @SuppressWarnings("unchecked")
-                        java.util.List<java.util.Map<String,Object>> myLines =
+                        // lines (unchanged)
+                        @SuppressWarnings("unchecked") var myLines  =
                                 (java.util.List<java.util.Map<String,Object>>) ui.get("hudLines" + my);
-                        @SuppressWarnings("unchecked")
-                        java.util.List<java.util.Map<String,Object>> oppLines =
+                        @SuppressWarnings("unchecked") var oppLines =
                                 (java.util.List<java.util.Map<String,Object>>) ui.get("hudLines" + opp);
                         panel.setHudLines(myLines, oppLines);
+
+                        // 🔽 NEW: capability gates
+                        boolean canLaunch = Boolean.TRUE.equals(ui.get("canLaunch" + my));
+//                        boolean canBuild  = Boolean.TRUE.equals(ui.get("canBuild"  + my));
+                        launchBtn.setEnabled(canLaunch);
+
+                        // (Optional) tell the ConnectionController about canBuild so it can ignore
+                        // build gestures when false — or just let server drop them with a toast.
+//                        panel.setCanBuild(canBuild); // add a simple setter if you want to gray UI
                     }
                 })
         );

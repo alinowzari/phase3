@@ -93,7 +93,13 @@ public class GamePanel extends JPanel {
         var hit = Pickers.pickPortAt(snapshot, p, /*input=*/true);
         return (hit == null) ? null : new PortPick(hit.systemId(), hit.portIndex(), hit.x(), hit.y());
     }
-    // GamePanel.java (add near other fields)
+    // GamePanel.java
+    public Integer pickSystemIdAt(Point p) {
+        var hit = Pickers.pickSystemAt(snapshot, p, W, H);
+        return (hit == null) ? null : hit.systemId();
+    }
+
+
 
     // GamePanel.java (add these methods)
     public void setSnapshotReplace(common.StateDTO s) {

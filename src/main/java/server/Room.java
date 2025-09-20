@@ -67,6 +67,7 @@ final class Room {
         // 2) advance each authoritative simulation
         levelA.step(33);
         levelB.step(33);
+        System.out.println("[LEN] A=" + levelA.sm.getWireUsedPx() + " B=" + levelB.sm.getWireUsedPx());
 
         // 3) snapshots (per side)
         var snapA = composeSnapshot(levelA, levelB, "A");
@@ -88,36 +89,63 @@ final class Room {
         }
     }
     /** Compose a snapshot for one side (“me”), including both HUD polylines and budgets. */
+//    private NetSnapshotDTO composeSnapshot(LevelSession me, LevelSession opp, String sideTag) {
+//        var info = new MatchInfoDTO(
+//                id,
+//                me.levelId(),
+//                state,
+//                tick,
+//                me.timeLeftMs(),
+//                me.score(),           // my score (ok to vary per-recipient)
+//                opp.score(),          // opponent score
+//                sideTag
+//        );
+//
+//        // State tree must still be "me"
+//        var stateDto = mapper.Mapper.toState(me.sm);
+//
+//        Map<String, Object> ui = new HashMap<>();
+//        ui.put("side", sideTag);
+//
+//        // 🔴 Always label by actual side, not by 'me/opp'
+//        ui.put("wireUsedA",    levelA.sm.getWireUsedPx());
+//        ui.put("wireBudgetA", (int) levelA.sm.getWireBudgetPx());
+//        ui.put("wireUsedB",    levelB.sm.getWireUsedPx());
+//        ui.put("wireBudgetB", (int) levelB.sm.getWireBudgetPx());
+//
+//        // Same for HUD lines
+//        ui.put("hudLinesA", levelA.hudLinesForUi());
+//        ui.put("hudLinesB", levelB.hudLinesForUi());
+//
+//        return new NetSnapshotDTO(info, stateDto, ui);
+//    }
     private NetSnapshotDTO composeSnapshot(LevelSession me, LevelSession opp, String sideTag) {
         var info = new MatchInfoDTO(
-                id,
-                me.levelId(),
-                state,
-                tick,
-                me.timeLeftMs(),
-                me.score(),           // my score (ok to vary per-recipient)
-                opp.score(),          // opponent score
-                sideTag
+                id, me.levelId(), state, tick, me.timeLeftMs(), me.score(), opp.score(), sideTag
         );
-
-        // State tree must still be "me"
         var stateDto = mapper.Mapper.toState(me.sm);
 
         Map<String, Object> ui = new HashMap<>();
         ui.put("side", sideTag);
 
-        // 🔴 Always label by actual side, not by 'me/opp'
+        // Global-by-side wire data (do NOT depend on me/opp)
         ui.put("wireUsedA",    levelA.sm.getWireUsedPx());
         ui.put("wireBudgetA", (int) levelA.sm.getWireBudgetPx());
         ui.put("wireUsedB",    levelB.sm.getWireUsedPx());
         ui.put("wireBudgetB", (int) levelB.sm.getWireBudgetPx());
+        ui.put("hudLinesA",    levelA.hudLinesForUi());
+        ui.put("hudLinesB",    levelB.hudLinesForUi());
 
-        // Same for HUD lines
-        ui.put("hudLinesA", levelA.hudLinesForUi());
-        ui.put("hudLinesB", levelB.hudLinesForUi());
+        // 🔽 NEW: phase capabilities (authoritative)
+        boolean buildPhase = (state == RoomState.BUILD);
+        ui.put("canBuildA",  buildPhase && !levelA.isLaunched());
+        ui.put("canBuildB",  buildPhase && !levelB.isLaunched());
+        ui.put("canLaunchA", buildPhase && levelA.canLaunch());
+        ui.put("canLaunchB", buildPhase && levelB.canLaunch());
 
         return new NetSnapshotDTO(info, stateDto, ui);
     }
+
 
     // Room.java  (inside drainCommands)
     private void drainCommands(Session s, LevelSession target, Set<Long> seenSet) {
@@ -151,17 +179,18 @@ final class Room {
                 }
 
                 if (cmd instanceof LaunchCmd) {
-                    if (s == a){
-                        launchedA = true;
-                    }
-                    else if (s == b){
-                        launchedB = true;
-                    }
+                    if (s == a) launchedA = true; else if (s == b) launchedB = true;
+
+                    // ✅ deliver to LevelSession so sm.launchPackets() actually runs
+                    target.enqueue(cmd);
+
                     System.out.println("[ROOM " + id + "] Launch by " + (s==a?"A":"B")
                             + " launchedA=" + launchedA + " launchedB=" + launchedB);
-                } else if (cmd instanceof ReadyCmd) {
+                }
+                else if (cmd instanceof ReadyCmd) {
                     if (s == a) readyA = true; else if (s == b) readyB = true;
-                } else {
+                }
+                else {
                     target.enqueue(cmd);
                 }
 

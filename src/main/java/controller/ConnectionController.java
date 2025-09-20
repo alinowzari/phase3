@@ -181,12 +181,25 @@ public class ConnectionController extends MouseInputAdapter {
 
         // ----- Right-click: open context menu (system first, else line) -----
         if (SwingUtilities.isRightMouseButton(e)) {
-            model.System sys = findSystemAt(p);
-            if (sys != null) {
-                lastContextPoint = p;
-                contextSystem = sys;
-                systemMenu.show(canvas, p.x, p.y);
-                return;
+            if (online) {
+                Integer sysId = canvas.pickSystemIdAt(p);   // <- snapshot-based pick
+                if (sysId != null) {
+                    // resolve to mirror System for preview anchor + id
+                    contextSystem = model.getSystemById(sysId);
+                    lastContextPoint = p;
+                    systemMenu.show(canvas, p.x, p.y);
+                    return;
+                }
+                // fall through to HUD line pick if no system was under cursor
+            } else {
+                // offline: keep your existing local-model pick
+                model.System sys = findSystemAt(p);
+                if (sys != null) {
+                    lastContextPoint = p;
+                    contextSystem = sys;
+                    systemMenu.show(canvas, p.x, p.y);
+                    return;
+                }
             }
 
             if (!online) {

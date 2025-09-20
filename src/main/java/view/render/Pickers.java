@@ -29,6 +29,8 @@ public final class Pickers {
 
     // NEW: include ids and screen coords
     public record PortHit(int systemId, int portIndex, int x, int y) {}
+    public record SystemHit(int systemId, int x, int y) {}
+
 
     public static PortHit pickPortAt(StateDTO s, Point p, boolean input) {
         if (s == null || s.systems() == null) return null;
@@ -52,5 +54,16 @@ public final class Pickers {
         t = Math.max(0, Math.min(1, t));
         double dx = a.x() + t*vx - p.x, dy = a.y() + t*vy - p.y;
         return Math.hypot(dx, dy);
+    }
+    /** Hit-test systems using the *snapshot*’s rectangles. */
+    public static SystemHit pickSystemAt(StateDTO s, Point p, int sysW, int sysH) {
+        if (s == null || s.systems() == null) return null;
+        for (var sd : s.systems()) {
+            int x = sd.x(), y = sd.y();
+            if (new Rectangle(x, y, sysW, sysH).contains(p)) {
+                return new SystemHit(sd.id(), x, y);
+            }
+        }
+        return null;
     }
 }
