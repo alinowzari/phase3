@@ -5,9 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BendPoint {
-    private final Point start;            // foot on the straight segment
+    private Point start;            // foot on the straight segment
     private       Point middle;           // draggable control point
-    private final Point end;              // other foot
+    private  Point end;              // other foot
 
     /* ready-made when the caller already knows all 3 points */
     public BendPoint(Point start, Point middle, Point end) {
@@ -21,6 +21,8 @@ public class BendPoint {
     public Point getEnd()    { return end;   }
     public Point getMiddle() { return middle;}
     public void  setMiddle(Point m){ this.middle = m; }
+    public void setStart(Point m){this.start=m;}
+    public void setEnd(Point m){this.end=m;}
     /* ----------------------------------------------------------
      *  Quadratic Bézier sampling:  returns N interior points
      *  (neither endpoint is included – callers add them already)

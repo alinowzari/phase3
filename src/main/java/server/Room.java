@@ -18,6 +18,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** One room, two independent levels (A,B). */
 final class Room {
+    private static final int SIM_HZ = 30;
+    private static final int SNAPSHOT_HZ = 15;
+    private static final int SNAPSHOT_EVERY = SIM_HZ / SNAPSHOT_HZ;
     // identities / sockets
     final String  id;
     final Session a, b;
@@ -70,15 +73,18 @@ final class Room {
         System.out.println("[LEN] A=" + levelA.sm.getWireUsedPx() + " B=" + levelB.sm.getWireUsedPx());
 
         // 3) snapshots (per side)
-        var snapA = composeSnapshot(levelA, levelB, "A");
-        var snapB = composeSnapshot(levelB, levelA, "B");
-        NetIO.send(a, net.Wire.of("SNAPSHOT", a.sid, snapA));
-        NetIO.send(b, net.Wire.of("SNAPSHOT", b.sid, snapB));
+        //new line change if fucked up
+        if ((tick % SNAPSHOT_EVERY) == 0) {
+            var snapA = composeSnapshot(levelA, levelB, "A");
+            var snapB = composeSnapshot(levelB, levelA, "B");
+            NetIO.send(a, net.Wire.of("SNAPSHOT", a.sid, snapA));
+            NetIO.send(b, net.Wire.of("SNAPSHOT", b.sid, snapB));
+        }
 
         if (state == RoomState.BUILD) {
             boolean timeUp = System.currentTimeMillis() >= buildDeadlineMs;
             // 🔒 TEMP: Require explicit launches from *both* sides; ignore timeUp while debugging
-            if (launchedA || launchedB) {
+            if (launchedA && launchedB) {
                 state = RoomState.ACTIVE;
                 System.out.println("[ROOM " + id + "] → ACTIVE (someone launched)");
             }

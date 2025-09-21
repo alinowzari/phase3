@@ -234,9 +234,9 @@ public final class LevelSession {
         }
 
 
-        // accept move
         sys.setLocation(new Point(m.x(), m.y()));
         if (delta != 0) sm.applyWireDelta(delta);
+        sm.syncPortCenters(sys);
         sm.recomputeUsedWireLength();
     }
 

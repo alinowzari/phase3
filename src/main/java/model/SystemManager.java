@@ -494,5 +494,33 @@ public class SystemManager {
         return after - before;
     }
 
+    public void syncPortCenters(System sys) {
+        if (sys == null) return;
+
+        int x0 = sys.getLocation().x, y0 = sys.getLocation().y;
+        // outputs: right edge
+        var outs = sys.getOutputPorts();
+        for (int i = 0; i < outs.size(); i++) {
+            var op = outs.get(i);
+            int cx = x0 + 90; // SYS_W
+            int cy = y0 + (i + 1) * 70 / (outs.size() + 1); // SYS_H
+            op.setCenter(new java.awt.Point(cx, cy));
+        }
+        // inputs: left edge
+        var ins = sys.getInputPorts();
+        for (int i = 0; i < ins.size(); i++) {
+            var ip = ins.get(i);
+            int cx = x0;
+            int cy = y0 + (i + 1) * 70 / (ins.size() + 1);
+            ip.setCenter(new java.awt.Point(cx, cy));
+        }
+
+        // invalidate line caches for all lines touching this system
+        for (var l : new java.util.ArrayList<>(allLines)) {
+            if (outs.contains(l.getStart()) || ins.contains(l.getEnd())) {
+                l.invalidateLengthCache();
+            }
+        }
+    }
 
 }
