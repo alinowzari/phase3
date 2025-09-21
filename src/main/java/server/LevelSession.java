@@ -29,7 +29,8 @@ public final class LevelSession {
     private long   tick       = 0;
     private long   timeLeftMs = 60_000;   // set by room
     private int    score      = 0;        // use sm.coinCount if you prefer
-
+    private volatile boolean levelPassed = false;
+    private volatile boolean ready = false;
     // --- core model ---
     public final SystemManager sm;        // authoritative model for THIS side
 
@@ -107,6 +108,9 @@ public final class LevelSession {
         tick++;
         timeLeftMs = Math.max(0, timeLeftMs - dtMs);
 
+        levelPassed = sm.isLevelPassed();   // <-- you were missing this line
+        score   = sm.coinCount;
+        ready=sm.isReady();
         // 3) advance effects
         long now = java.lang.System.currentTimeMillis();
         for (var it = effects.iterator(); it.hasNext();) {
@@ -156,6 +160,8 @@ public final class LevelSession {
         ip.setLine(line);
         sm.addLine(line);
         sm.recomputeUsedWireLength();
+        sm.syncPortCenters(sysA);
+        sm.syncPortCenters(sysB);
         java.lang.System.out.println("[LevelSession] addLine OK: " + sysA.getId()+ " -> " + sysB.getId() );
     }
 
@@ -339,33 +345,32 @@ public final class LevelSession {
     // ===== snapshot for clients (server → client) =====
 
     /** Room usually builds the outer NetSnapshotDTO; this is handy if you need a self-contained version. */
-//    public NetSnapshotDTO toSnapshot(String roomId, RoomState state, String sideTag) {
-//        var info = new MatchInfoDTO(roomId, levelId, state, tick, timeLeftMs, score, 0, sideTag);
-//        var stateDto = mapper.Mapper.toState(sm);
-//        var ui = new java.util.HashMap<String,Object>();
-//        ui.put("wireUsed",   sm.getWireUsedPx());
-//        ui.put("wireBudget", (int) sm.getWireBudgetPx());
-//        ui.put("hudLines",   hudLinesForUi());
-//        return new NetSnapshotDTO(info, stateDto, ui);
-//    }
-// server/LevelSession.java
     NetSnapshotDTO toSnapshot(String roomId, RoomState state, String sideTag) {
         var info = new MatchInfoDTO(roomId, levelId, state, tick, timeLeftMs, score, 0, sideTag);
         var stateDto = mapper.Mapper.toState(sm);
 
         var ui = new java.util.HashMap<String,Object>();
+        ui.put("side", sideTag);
+
         if ("A".equalsIgnoreCase(sideTag)) {
-            ui.put("wireUsedA",    sm.getWireUsedPx());
+            ui.put("readyA",      sm.isReady());
+            ui.put("coinsA",      sm.coinCount);
+            ui.put("totalA",      sm.getTotalCoins());
+            ui.put("wireUsedA",   sm.getWireUsedPx());
             ui.put("wireBudgetA", (int) sm.getWireBudgetPx());
-            ui.put("hudLinesA",    hudLinesForUi());
+            ui.put("hudLinesA",   hudLinesForUi());
         } else {
-            ui.put("wireUsedB",    sm.getWireUsedPx());
+            ui.put("readyB",      sm.isReady());
+            ui.put("coinsB",      sm.coinCount);
+            ui.put("totalB",      sm.getTotalCoins());
+            ui.put("wireUsedB",   sm.getWireUsedPx());
             ui.put("wireBudgetB", (int) sm.getWireBudgetPx());
-            ui.put("hudLinesB",    hudLinesForUi());
+            ui.put("hudLinesB",   hudLinesForUi());
         }
 
         return new NetSnapshotDTO(info, stateDto, ui);
     }
+
 
     /** For Room.composeSnapshot(...): return list of {fromSystemId,fromOutputIndex,toSystemId,toInputIndex,polyline:[{x,y}...]}. */
     public List<Map<String,Object>> hudLinesForUi() {
@@ -476,4 +481,9 @@ public final class LevelSession {
     public int    score()      { return score; }
     public boolean isLaunched() { return launched; }
     public boolean canLaunch()  { return !launched; }
+    public boolean isReady(){return ready; }
+    public boolean isLevelPassed()      { return levelPassed; }
+    public int     coins()          { return score; }                  // already kept in step()
+    public int     wireUsedPx()     { return sm.getWireUsedPx(); }
+
 }

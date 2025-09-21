@@ -187,7 +187,17 @@ public class SystemManager {
                 if (sys instanceof AntiTrojanSystem ats) ats.cleanTrojan(dt); // dt-based, no nanoTime
             }
         }
-
+        if (ctx.tick % 15 == 0) {
+            int totalOut = 0, wiredOut = 0, totalIn = 0, wiredIn = 0;
+            for (var s : systems) {
+                totalOut += s.getOutputPorts().size();
+                for (var op : s.getOutputPorts()) if (op.getLine() != null) wiredOut++;
+                totalIn  += s.getInputPorts().size();
+                for (var ip : s.getInputPorts()) if (ip.getLine() != null) wiredIn++;
+            }
+            java.lang.System.out.printf("[READY DBG] wiredOut=%d/%d wiredIn=%d/%d centresOk=%s isReady=%s%n",
+                    wiredOut, totalOut, wiredIn, totalIn, wiringClearsSystemCentres(), isReady);
+        }
         // 5) end-of-run check
         if (allIdle()) {
             if (isLevelPassed) commitLevelWinIfNeeded();
@@ -522,5 +532,7 @@ public class SystemManager {
             }
         }
     }
+    public boolean isLevelPassed() { return isLevelPassed; }
+    public boolean isEverythingIdle() { return allIdle(); }
 
 }

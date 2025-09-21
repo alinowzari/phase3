@@ -1,6 +1,7 @@
 
 package view;
 
+import common.NetSnapshotDTO;
 import common.StateDTO;
 import common.LineDTO;
 import common.PointDTO;
@@ -70,13 +71,22 @@ public class GamePanel extends JPanel {
     public void setHandles(Point mid, Point a, Point b) { this.hMid = mid; this.hA = a; this.hB = b; repaint(); }
     public void clearHandles()                          { hMid = hA = hB = null; repaint(); }
 
-    public void setSnapshot(StateDTO s) { this.snapshot = s; repaint(); }
     public StateDTO getSnapshot()       { return snapshot; }
 
     /** API kept for compatibility; HUD now auto-computes from uiData/model. */
     public void setWireHud(Integer used, Integer cap) { /* no-op by design */ }
 
-    public void setUiData(Map<String, Object> ui) { this.uiData = ui; repaint(); }
+    // GamePanel.java
+    public void setSnapshot(StateDTO s) {
+        this.snapshot = s;
+        // DO NOT repaint here — wait for UI map
+    }
+
+    public void setUiData(Map<String, Object> ui) {
+        this.uiData = (ui == null ? null : new java.util.HashMap<>(ui)); // defensive copy
+        repaint(); // repaint only after UI is in
+    }
+
 
     // ===== Online picking helpers (delegated to Pickers) =====
     public record PortPick(int systemId, int portIndex, int x, int y) {}
@@ -140,16 +150,36 @@ public class GamePanel extends JPanel {
         this.uiData = m;
         repaint();
     }
+    /** Apply a full server snapshot (state + ui) in one shot. */
+    public void applyNetSnapshot(NetSnapshotDTO snap) {
+        if (snap == null) {
+            this.snapshot = null;
+            this.uiData   = null;
+            repaint();
+            return;
+        }
+        // 1) replace the authoritative state
+        this.snapshot = snap.state();
 
+        // 2) take the UI map and make a defensive copy (so later merges don’t drop keys)
+        Map<String,Object> ui = snap.ui();
+        if (ui != null) {
+            ui = new java.util.HashMap<>(ui);
+            // Ensure the local side is present so HUD reads the correct readyX
+            if (snap.info() != null && snap.info().side() != null) {
+                ui.put("side", snap.info().side()); // "A" or "B"
+            }
+        }
+        this.uiData = ui;
 
-    /* ===== Paint orchestration ===== */
+        repaint();
+    }
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // ✅ make geometry consistent for OFFLINE logic
         if (model != null) {
             view.render.PortCenterSync.sync(model);
         }
@@ -160,5 +190,6 @@ public class GamePanel extends JPanel {
         preview.paint(g2, previewA, previewB, hMid, hA, hB);
         packets.paint(g2, model, snapshot);
     }
+
 
 }

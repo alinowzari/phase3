@@ -78,6 +78,7 @@ public final class OnlineGameController {
         this.client.setSnapshotHandler(snap ->
                 SwingUtilities.invokeLater(() -> {
                     panel.setSnapshotReplace(snap.state());
+                    panel.setUiData(snap.ui());
                     var ui = snap.ui();
                     if (ui != null) {
                         final String my  = this.client.getSide();

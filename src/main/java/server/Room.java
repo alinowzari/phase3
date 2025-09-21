@@ -60,40 +60,7 @@ final class Room {
         launchedA = false; launchedB = false;  // ✨ NEW
         tick = 0;
     }
-//    void tickOnce() {
-//        tick++;
-//
-//        // 1) drain incoming COMMANDs, routing per side
-//        drainCommands(a, levelA, seenSeqA);
-//        drainCommands(b, levelB, seenSeqB);
-//
-//        // 2) advance each authoritative simulation
-//        levelA.step(33);
-//        levelB.step(33);
-//        System.out.println("[LEN] A=" + levelA.sm.getWireUsedPx() + " B=" + levelB.sm.getWireUsedPx());
-//
-//        // 3) snapshots (per side)
-//        //new line change if fucked up
-//        if ((tick % SNAPSHOT_EVERY) == 0) {
-//            var snapA = composeSnapshot(levelA, levelB, "A");
-//            var snapB = composeSnapshot(levelB, levelA, "B");
-//            NetIO.send(a, net.Wire.of("SNAPSHOT", a.sid, snapA));
-//            NetIO.send(b, net.Wire.of("SNAPSHOT", b.sid, snapB));
-//        }
-//
-//        if (state == RoomState.BUILD) {
-//            boolean timeUp = System.currentTimeMillis() >= buildDeadlineMs;
-//            // 🔒 TEMP: Require explicit launches from *both* sides; ignore timeUp while debugging
-//            if (launchedA && launchedB) {
-//                state = RoomState.ACTIVE;
-//                System.out.println("[ROOM " + id + "] → ACTIVE (someone launched)");
-//            }
-//        }
-//        if (state == RoomState.ACTIVE && !activeLogged) {
-//            activeLogged = true;
-//            GameServer.onRoomActive(this);
-//        }
-//    }
+
     void tickOnce() {
         tick++;
 
@@ -110,6 +77,8 @@ final class Room {
         if ((tick % SNAPSHOT_EVERY) == 0) {
             var snapA = composeSnapshot(levelA, levelB, "A");
             var snapB = composeSnapshot(levelB, levelA, "B");
+            System.out.println("[SNAP OUT] A ready="+snapA.ui().get("readyA")+" coinsA="+snapA.ui().get("coinsA"));
+            System.out.println("[SNAP OUT] B ready="+snapB.ui().get("readyB")+" coinsB="+snapB.ui().get("coinsB"));
             NetIO.send(a, net.Wire.of("SNAPSHOT", a.sid, snapA));
             NetIO.send(b, net.Wire.of("SNAPSHOT", b.sid, snapB));
         }
@@ -128,33 +97,43 @@ final class Room {
         }
     }
 
-    private NetSnapshotDTO composeSnapshot(LevelSession me, LevelSession opp, String sideTag) {
-        var info = new MatchInfoDTO(
-                id, me.levelId(), state, tick, me.timeLeftMs(), me.score(), opp.score(), sideTag
-        );
-        var stateDto = mapper.Mapper.toState(me.sm);
+    // Room.java
+    private Map<String,Object> buildUi(String sideTag) {
+        Map<String,Object> ui = new java.util.HashMap<>();
+        ui.put("side", sideTag); // "A" or "B"
 
-        Map<String, Object> ui = new HashMap<>();
-        ui.put("side", sideTag);
+        // readiness & coins (authoritative)
+        ui.put("readyA", levelA.isReady());
+        ui.put("readyB", levelB.isReady());
+        ui.put("coinsA", levelA.score());
+        ui.put("coinsB", levelB.score());
+        ui.put("levelPassedA", levelA.isLevelPassed());
+        ui.put("levelPassedB", levelB.isLevelPassed());
 
-        // Global-by-side wire data (do NOT depend on me/opp)
+        // totals (if you want “Total:” in HUD)
+        ui.put("totalA", levelA.sm.getTotalCoins());
+        ui.put("totalB", levelB.sm.getTotalCoins());
+
+        // wire HUD (per side)
         ui.put("wireUsedA",    levelA.sm.getWireUsedPx());
         ui.put("wireBudgetA", (int) levelA.sm.getWireBudgetPx());
         ui.put("wireUsedB",    levelB.sm.getWireUsedPx());
         ui.put("wireBudgetB", (int) levelB.sm.getWireBudgetPx());
-        ui.put("hudLinesA",    levelA.hudLinesForUi());
-        ui.put("hudLinesB",    levelB.hudLinesForUi());
 
-        // 🔽 NEW: phase capabilities (authoritative)
+        // (optional) buttons
         boolean buildPhase = (state == RoomState.BUILD);
         ui.put("canBuildA",  buildPhase && !levelA.isLaunched());
         ui.put("canBuildB",  buildPhase && !levelB.isLaunched());
         ui.put("canLaunchA", buildPhase && levelA.canLaunch());
         ui.put("canLaunchB", buildPhase && levelB.canLaunch());
-
-        return new NetSnapshotDTO(info, stateDto, ui);
+        return ui;
     }
 
+    private NetSnapshotDTO composeSnapshot(LevelSession me, LevelSession opp, String sideTag) {
+        var info = new MatchInfoDTO(id, me.levelId(), state, tick, me.timeLeftMs(), me.score(), opp.score(), sideTag);
+        var stateDto = mapper.Mapper.toState(me.sm);
+        return new NetSnapshotDTO(info, stateDto, buildUi(sideTag));
+    }
     private void drainCommands(Session s, LevelSession target, Set<Long> seenSet) {
         if (s == null) return;
 
