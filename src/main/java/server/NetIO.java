@@ -1,17 +1,14 @@
+// server/NetIO.java
 package server;
 
 import net.Wire;
 import net.Wire.Envelope;
 
-import java.io.PrintWriter;
-
 final class NetIO {
     static void send(Session s, Envelope e) {
-        synchronized (s.sendLock) {
-            PrintWriter pw = s.out;
-            if (pw == null) return;         // safe guard on races
-            pw.print(Wire.encode(e));
-            pw.flush();
-        }
+        if (s == null) return;
+        String line = Wire.encode(e); // must include '\n'
+        if ("SNAPSHOT".equals(e.t)) s.offerSnapshot(line);
+        else                        s.offerPriority(line);
     }
 }

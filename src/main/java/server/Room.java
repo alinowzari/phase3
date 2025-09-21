@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /** One room, two independent levels (A,B). */
 final class Room {
     private static final int SIM_HZ = 30;
-    private static final int SNAPSHOT_HZ = 15;
+    private static final int SNAPSHOT_HZ = 10;
     private static final int SNAPSHOT_EVERY = SIM_HZ / SNAPSHOT_HZ;
     // identities / sockets
     final String  id;
@@ -60,6 +60,40 @@ final class Room {
         launchedA = false; launchedB = false;  // ✨ NEW
         tick = 0;
     }
+//    void tickOnce() {
+//        tick++;
+//
+//        // 1) drain incoming COMMANDs, routing per side
+//        drainCommands(a, levelA, seenSeqA);
+//        drainCommands(b, levelB, seenSeqB);
+//
+//        // 2) advance each authoritative simulation
+//        levelA.step(33);
+//        levelB.step(33);
+//        System.out.println("[LEN] A=" + levelA.sm.getWireUsedPx() + " B=" + levelB.sm.getWireUsedPx());
+//
+//        // 3) snapshots (per side)
+//        //new line change if fucked up
+//        if ((tick % SNAPSHOT_EVERY) == 0) {
+//            var snapA = composeSnapshot(levelA, levelB, "A");
+//            var snapB = composeSnapshot(levelB, levelA, "B");
+//            NetIO.send(a, net.Wire.of("SNAPSHOT", a.sid, snapA));
+//            NetIO.send(b, net.Wire.of("SNAPSHOT", b.sid, snapB));
+//        }
+//
+//        if (state == RoomState.BUILD) {
+//            boolean timeUp = System.currentTimeMillis() >= buildDeadlineMs;
+//            // 🔒 TEMP: Require explicit launches from *both* sides; ignore timeUp while debugging
+//            if (launchedA && launchedB) {
+//                state = RoomState.ACTIVE;
+//                System.out.println("[ROOM " + id + "] → ACTIVE (someone launched)");
+//            }
+//        }
+//        if (state == RoomState.ACTIVE && !activeLogged) {
+//            activeLogged = true;
+//            GameServer.onRoomActive(this);
+//        }
+//    }
     void tickOnce() {
         tick++;
 
@@ -72,8 +106,7 @@ final class Room {
         levelB.step(33);
         System.out.println("[LEN] A=" + levelA.sm.getWireUsedPx() + " B=" + levelB.sm.getWireUsedPx());
 
-        // 3) snapshots (per side)
-        //new line change if fucked up
+        // 3) send snapshots (coalesced by NetIO writer)
         if ((tick % SNAPSHOT_EVERY) == 0) {
             var snapA = composeSnapshot(levelA, levelB, "A");
             var snapB = composeSnapshot(levelB, levelA, "B");
@@ -81,9 +114,9 @@ final class Room {
             NetIO.send(b, net.Wire.of("SNAPSHOT", b.sid, snapB));
         }
 
+        // 4) phase transitions / lifecycle
         if (state == RoomState.BUILD) {
             boolean timeUp = System.currentTimeMillis() >= buildDeadlineMs;
-            // 🔒 TEMP: Require explicit launches from *both* sides; ignore timeUp while debugging
             if (launchedA && launchedB) {
                 state = RoomState.ACTIVE;
                 System.out.println("[ROOM " + id + "] → ACTIVE (someone launched)");
@@ -94,37 +127,7 @@ final class Room {
             GameServer.onRoomActive(this);
         }
     }
-    /** Compose a snapshot for one side (“me”), including both HUD polylines and budgets. */
-//    private NetSnapshotDTO composeSnapshot(LevelSession me, LevelSession opp, String sideTag) {
-//        var info = new MatchInfoDTO(
-//                id,
-//                me.levelId(),
-//                state,
-//                tick,
-//                me.timeLeftMs(),
-//                me.score(),           // my score (ok to vary per-recipient)
-//                opp.score(),          // opponent score
-//                sideTag
-//        );
-//
-//        // State tree must still be "me"
-//        var stateDto = mapper.Mapper.toState(me.sm);
-//
-//        Map<String, Object> ui = new HashMap<>();
-//        ui.put("side", sideTag);
-//
-//        // 🔴 Always label by actual side, not by 'me/opp'
-//        ui.put("wireUsedA",    levelA.sm.getWireUsedPx());
-//        ui.put("wireBudgetA", (int) levelA.sm.getWireBudgetPx());
-//        ui.put("wireUsedB",    levelB.sm.getWireUsedPx());
-//        ui.put("wireBudgetB", (int) levelB.sm.getWireBudgetPx());
-//
-//        // Same for HUD lines
-//        ui.put("hudLinesA", levelA.hudLinesForUi());
-//        ui.put("hudLinesB", levelB.hudLinesForUi());
-//
-//        return new NetSnapshotDTO(info, stateDto, ui);
-//    }
+
     private NetSnapshotDTO composeSnapshot(LevelSession me, LevelSession opp, String sideTag) {
         var info = new MatchInfoDTO(
                 id, me.levelId(), state, tick, me.timeLeftMs(), me.score(), opp.score(), sideTag
@@ -152,59 +155,58 @@ final class Room {
         return new NetSnapshotDTO(info, stateDto, ui);
     }
 
-
-    // Room.java  (inside drainCommands)
     private void drainCommands(Session s, LevelSession target, Set<Long> seenSet) {
         if (s == null) return;
+
+        // NEW: keep only the latest move per entity/bend this tick
+        java.util.Map<Integer, MoveSystemCmd> latestSystemMove = new java.util.HashMap<>();
+        record BendKey(int fs, int fo, int ts, int ti, int bendIndex) {}
+        java.util.Map<BendKey, MoveBendCmd> latestBendMove = new java.util.HashMap<>();
 
         net.Wire.Envelope env;
         while ((env = s.inputs.poll()) != null) {
             try {
                 if (!"COMMAND".equals(env.t)) continue;
-                JsonNode d = env.data; if (d == null) continue;
+                com.fasterxml.jackson.databind.JsonNode d = env.data; if (d == null) continue;
 
                 long seq = d.path("seq").asLong(-1);
                 if (seq >= 0 && !seenSet.add(seq)) {
-                    NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, Map.of("seq", seq, "dup", true)));
+                    NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, java.util.Map.of("seq", seq, "dup", true)));
                     continue;
                 }
 
-                JsonNode cmdNode = d.get("cmd"); if (cmdNode == null) continue;
+                com.fasterxml.jackson.databind.JsonNode cmdNode = d.get("cmd");
+                if (cmdNode == null) continue;
                 ClientCommand cmd = decodeCmd(cmdNode);
 
-                // 🔎 TRACE what we received and current room state
-                System.out.println("[ROOM " + id + "] cmd from " + (s == a ? "A" : "B")
-                        + " type=" + cmd.getClass().getSimpleName()
-                        + " state=" + state);
-
                 if (!isAllowedInPhase(cmd, state)) {
-                    System.out.println("[ROOM " + id + "] DROP " + cmd.getClass().getSimpleName()
-                            + " in phase " + state + " (seq=" + seq + ")");
-                    NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, Map.of("seq", seq, "dropped", true, "why", "phase")));
+                    NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, java.util.Map.of("seq", seq, "dropped", true, "why", "phase")));
                     continue;
                 }
 
                 if (cmd instanceof LaunchCmd) {
                     if (s == a) launchedA = true; else if (s == b) launchedB = true;
-
-                    // ✅ deliver to LevelSession so sm.launchPackets() actually runs
-                    target.enqueue(cmd);
-
-                    System.out.println("[ROOM " + id + "] Launch by " + (s==a?"A":"B")
-                            + " launchedA=" + launchedA + " launchedB=" + launchedB);
-                }
-                else if (cmd instanceof ReadyCmd) {
+                    target.enqueue(cmd); // keep explicit launch
+                } else if (cmd instanceof ReadyCmd) {
                     if (s == a) readyA = true; else if (s == b) readyB = true;
-                }
-                else {
-                    target.enqueue(cmd);
+                } else if (cmd instanceof MoveSystemCmd m) {
+                    latestSystemMove.put(m.systemId(), m); // coalesce
+                } else if (cmd instanceof MoveBendCmd mb) {
+                    BendKey k = new BendKey(mb.fromSystemId(), mb.fromOutputIndex(), mb.toSystemId(), mb.toInputIndex(), mb.bendIndex());
+                    latestBendMove.put(k, mb); // coalesce
+                } else {
+                    target.enqueue(cmd); // other commands as-is
                 }
 
-                NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, Map.of("seq", seq)));
+                NetIO.send(s, net.Wire.of("CMD_ACK", s.sid, java.util.Map.of("seq", seq)));
             } catch (Exception ex) {
                 System.err.println("[Room " + id + "] bad command: " + ex);
             }
         }
+
+        // Apply at most one of each move now
+        for (var m : latestSystemMove.values()) target.enqueue(m);
+        for (var m : latestBendMove.values())   target.enqueue(m);
     }
 
     /** Parse a compact command node (we strip “type” before mapping to records). */

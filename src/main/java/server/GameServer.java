@@ -89,27 +89,27 @@ public final class GameServer {
     private void handleClient(Socket s) {
         Session session = null;
         try (s;
-             BufferedReader in  = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
-             PrintWriter out    = new PrintWriter(new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8), true)) {
+             BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
+             // IMPORTANT: autoFlush=false (second ctor arg)
+             PrintWriter out = new PrintWriter(new OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8), false)) {
 
-            // bootstrap
+            s.setTcpNoDelay(true); // avoid Nagle adding extra latency
+
             String sid = UUID.randomUUID().toString();
             String token = UUID.randomUUID().toString();
             session = new Session(sid, token, out);
             sessions.put(sid, session);
             sessionsByToken.put(token, session);
             metrics.sessionsOpened.incrementAndGet();
-            System.out.println(json("session_open", Map.of("sid", sid, "token", token)));
-// --- NEW: per-session HMAC key for command MACs ---
-            java.security.SecureRandom rnd = new java.security.SecureRandom();
-            session.hmacKey = new byte[32];
-            rnd.nextBytes(session.hmacKey);
-            String hmacKeyB64 = java.util.Base64.getEncoder().encodeToString(session.hmacKey);
 
+            // start writer thread
+            session.startWriterLoop();
+
+            // ... send HELLO_S using NetIO (this will queue & writer will flush)
             NetIO.send(session, Wire.of("HELLO_S", sid, Map.of(
-                    "serverTime",      Instant.now().toEpochMilli(),
-                    "reconnectToken",  token,       // UUID string
-                    "hmacKey",         hmacKeyB64   // Base64 of 32-byte key
+                    "serverTime", java.time.Instant.now().toEpochMilli(),
+                    "reconnectToken", token,
+                    "hmacKey", java.util.Base64.getEncoder().encodeToString(session.hmacKey)
             )));
 
             // read loop
@@ -324,7 +324,9 @@ public final class GameServer {
             System.out.println(ignored.getMessage());
         }
         finally {
-            if (session != null) dropSession(session, "io_error_or_closed");
+            if (session != null) {
+                dropSession(session, "io_error_or_closed");
+            }
         }
     }
 
@@ -352,13 +354,15 @@ public final class GameServer {
     }
 
     private void dropSession(Session s, String reason) {
+        if (s == null) return;
+        s.stopWriterLoop(); // <— stop the writer thread first
+
         metrics.sessionsClosed.incrementAndGet();
         System.out.println(json("session_close", Map.of("sid", s.sid, "reason", reason)));
         try { NetIO.send(s, err("disconnect", reason)); } catch (Exception ignored) {}
         sessions.remove(s.sid);
         sessionsByToken.remove(s.token);
         matchmaking.remove(s);
-
         Room r = s.room;
         if (r != null) {
             boolean wasActive = (r.state == RoomState.ACTIVE);
