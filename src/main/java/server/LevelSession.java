@@ -28,7 +28,7 @@ public final class LevelSession {
     private final String levelId;
     private long   tick       = 0;
     private long   timeLeftMs = 60_000;   // set by room
-    private int    score      = 0;        // use sm.coinCount if you prefer
+    private int    score      = 0;
     private volatile boolean levelPassed = false;
     private volatile boolean ready = false;
     // --- core model ---
@@ -36,6 +36,8 @@ public final class LevelSession {
 
     // --- inbound intents from reader threads ---
     private final ConcurrentLinkedQueue<ClientCommand> pending = new ConcurrentLinkedQueue<>();
+
+    private PlayerStats playerStats;
 
     // (optional) “controllable systems” if you want per-system cooldowns
     private final List<Integer> controllable = new ArrayList<>();
@@ -111,6 +113,9 @@ public final class LevelSession {
         levelPassed = sm.isLevelPassed();   // <-- you were missing this line
         score   = sm.coinCount;
         ready=sm.isReady();
+        if(activePackets()==0){
+            playerStats=new PlayerStats(isLevelPassed(),score(),wireUsedPx());
+        }
         // 3) advance effects
         long now = java.lang.System.currentTimeMillis();
         for (var it = effects.iterator(); it.hasNext();) {
@@ -118,7 +123,6 @@ public final class LevelSession {
         }
 
         // 4) scoring source
-        score = sm.coinCount;
     }
 
     // ===== authoritative mutations =====
@@ -485,5 +489,6 @@ public final class LevelSession {
     public boolean isLevelPassed()      { return levelPassed; }
     public int     coins()          { return score; }                  // already kept in step()
     public int     wireUsedPx()     { return sm.getWireUsedPx(); }
-
+    public int activePackets() { return sm.allPackets.size(); }
+    public PlayerStats getPlayerStats() {return playerStats; }
 }

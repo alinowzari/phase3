@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** One room, two independent levels (A,B). */
 final class Room {
-    private static final int SIM_HZ = 30;
+    private static final int SIM_HZ = 3000;
     private static final int SNAPSHOT_HZ = 10;
     private static final int SNAPSHOT_EVERY = SIM_HZ / SNAPSHOT_HZ;
     // identities / sockets
@@ -28,7 +28,11 @@ final class Room {
     // level choice (per side)
     final String        levelNameA, levelNameB;
     final LevelSession  levelA, levelB;  // ← separate authoritative models
+    private static final int QUIESCENCE_TICKS = 90; // ~3s at 30Hz
+    private int  idleBothTicks = 0;
+    private boolean matchEnded = false;
 
+    private final WinJudge judge = new WinJudge(); // no args now
     // lifecycle
     volatile boolean     activeLogged = false;
     volatile boolean     started      = true;
@@ -36,7 +40,7 @@ final class Room {
     volatile RoomState   state        = RoomState.BUILD;
     volatile long        buildDeadlineMs;
     volatile boolean     readyA, readyB;
-
+    public MatchResult matchResult;
     // per-side command de-dup
     private final Set<Long> seenSeqA = ConcurrentHashMap.newKeySet();
     private final Set<Long> seenSeqB = ConcurrentHashMap.newKeySet();
@@ -73,6 +77,22 @@ final class Room {
         levelB.step(33);
         System.out.println("[LEN] A=" + levelA.sm.getWireUsedPx() + " B=" + levelB.sm.getWireUsedPx());
 
+        boolean bothIdle = (levelA.activePackets() == 0 && levelB.activePackets() == 0);
+        idleBothTicks = bothIdle ? idleBothTicks + 1 : 0;
+
+        if (!matchEnded
+                && state == RoomState.ACTIVE
+                && launchedA && launchedB
+                && idleBothTicks >= QUIESCENCE_TICKS) {
+
+            // Build authoritative stats from the server-side model (not UI map)
+            PlayerStats pA = new PlayerStats(levelA.isLevelPassed(), levelA.score(), levelA.sm.getWireUsedPx());
+            PlayerStats pB = new PlayerStats(levelB.isLevelPassed(), levelB.score(), levelB.sm.getWireUsedPx());
+
+            matchResult = judge.decide(pA, pB);
+            broadcastMatchEnd(matchResult);   // implement below
+            matchEnded = true;
+        }
         // 3) send snapshots (coalesced by NetIO writer)
         if ((tick % SNAPSHOT_EVERY) == 0) {
             var snapA = composeSnapshot(levelA, levelB, "A");
@@ -250,4 +270,17 @@ final class Room {
         // Not one of our players – minimal neutral snapshot (optional)
         return composeSnapshot(levelA, levelB, "A"); // safe default or throw
     }
+    private void broadcastMatchEnd(MatchResult r) {
+        var payload = java.util.Map.of(
+                "winner", r.winner().name(),
+                "reason", r.reason(),
+                "p1", r.p1(),
+                "p2", r.p2(),
+                "tick", tick
+        );
+        NetIO.send(a, net.Wire.of("MATCH_END", a.sid, payload));
+        NetIO.send(b, net.Wire.of("MATCH_END", b.sid, payload));
+        System.out.println("[ROOM " + id + "] match ended: " + r.winner() + " (" + r.reason() + ")");
+    }
+
 }
